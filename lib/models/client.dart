@@ -1,0 +1,94 @@
+class Client {
+  final int? id;
+  final String firstName;
+  final String lastName;
+  final String email;
+  final String address;
+  final String street;
+  final String phone;
+  final String installationLocation;
+  final String holder;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+
+  Client({
+    this.id,
+    required this.firstName,
+    required this.lastName,
+    required this.email,
+    required this.address,
+    required this.street,
+    required this.phone,
+    required this.installationLocation,
+    required this.holder,
+    required this.createdAt,
+    required this.updatedAt,
+  });
+
+  String get name => '$firstName $lastName'.trim();
+
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'first_name': firstName,
+      'last_name': lastName,
+      'email': email,
+      'address': address,
+      'street': street,
+      'phone': phone,
+      'installation_location': installationLocation,
+      'holder': holder,
+      'created_at': createdAt.toIso8601String(),
+      'updated_at': updatedAt.toIso8601String(),
+    };
+  }
+
+  factory Client.fromMap(Map<String, dynamic> map) {
+    return Client(
+      id: map['id']?.toInt(),
+      firstName: map['first_name'] ?? '',
+      lastName: map['last_name'] ?? '',
+      email: map['email'] ?? '',
+      address: map['address'] ?? '',
+      street: map['street'] ?? '',
+      phone: map['phone'] ?? '',
+      installationLocation: map['installation_location'] ?? '',
+      holder: map['holder'] ?? '',
+      createdAt: DateTime.parse(map['created_at']),
+      updatedAt: DateTime.parse(map['updated_at']),
+    );
+  }
+
+  Client copyWith({
+    int? id,
+    String? firstName,
+    String? lastName,
+    String? email,
+    String? address,
+    String? street,
+    String? phone,
+    String? installationLocation,
+    String? holder,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+  }) {
+    return Client(
+      id: id ?? this.id,
+      firstName: firstName ?? this.firstName,
+      lastName: lastName ?? this.lastName,
+      email: email ?? this.email,
+      address: address ?? this.address,
+      street: street ?? this.street,
+      phone: phone ?? this.phone,
+      installationLocation: installationLocation ?? this.installationLocation,
+      holder: holder ?? this.holder,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return 'Client{id: $id, name: $name, email: $email, address: $address, phone: $phone}';
+  }
+}
