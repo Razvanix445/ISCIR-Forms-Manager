@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
+import '../../main.dart';
 import '../../providers/client_provider.dart';
 import '../../models/client.dart';
 import '../../services/database_service.dart';
+import '../forms/widgets/client_card.dart';
 import 'add_edit_client_screen.dart';
 
 class ClientsScreen extends StatefulWidget {
@@ -13,154 +15,598 @@ class ClientsScreen extends StatefulWidget {
   State<ClientsScreen> createState() => _ClientsScreenState();
 }
 
-class _ClientsScreenState extends State<ClientsScreen> {
+class _ClientsScreenState extends State<ClientsScreen> with TickerProviderStateMixin {
+  late AnimationController _animationController;
+  late Animation<double> _fadeAnimation;
+
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
+  List<Client> _filteredClients = [];
+
   @override
   void initState() {
     super.initState();
+    _animationController = AnimationController(
+      duration: const Duration(milliseconds: 800),
+      vsync: this,
+    );
+    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _animationController, curve: Curves.easeInOut),
+    );
+
+    _searchController.addListener(_onSearchChanged);
+
     // Load clients when screen initializes
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<ClientProvider>().loadClients();
+      _animationController.forward();
     });
+  }
+
+  @override
+  void dispose() {
+    _animationController.dispose();
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  void _onSearchChanged() {
+    setState(() {
+      _searchQuery = _searchController.text.toLowerCase();
+    });
+  }
+
+  List<Client> _getFilteredClients(List<Client> clients) {
+    if (_searchQuery.isEmpty) {
+      return clients;
+    }
+
+    return clients.where((client) {
+      final name = '${client.firstName} ${client.lastName}'.toLowerCase();
+      final email = client.email.toLowerCase();
+      final address = client.address.toLowerCase();
+      final phone = client.phone.toLowerCase();
+      final holder = client.holder.toLowerCase();
+
+      return name.contains(_searchQuery) ||
+          email.contains(_searchQuery) ||
+          address.contains(_searchQuery) ||
+          phone.contains(_searchQuery) ||
+          holder.contains(_searchQuery);
+    }).toList();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('ISCIR Forms - Clients'),
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        actions: [
-          IconButton(
-            onPressed: () async {
-              showDialog(
-                context: context,
-                builder: (context) => AlertDialog(
-                  title: const Text('Reset Database'),
-                  content: const Text('This will delete ALL data and recreate the database. Continue?'),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(context),
-                      child: const Text('Cancel'),
-                    ),
-                    ElevatedButton(
-                      onPressed: () async {
-                        Navigator.pop(context);
+      backgroundColor: const Color(0xFFF8FAFC),
+      body: GradientBackground(
+        child: Column(
+          children: [
+            // Modern header instead of AppBar
+            ModernHeader(
+              title: 'Formulare ISCIR',
+              subtitle: 'Gestionează-ți clienții și completează rapoarte',
+              showBackButton: false,
+              leading: Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(
+                  Icons.engineering,
+                  color: Colors.white,
+                  size: 24,
+                ),
+              ),
+              actions: [
+                Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: IconButton(
+                    onPressed: _showResetDialog,
+                    icon: const Icon(Icons.refresh, color: Colors.white),
+                    tooltip: 'Resetează Baza de Date',
+                  ),
+                ),
+              ],
+            ),
 
-                        try {
-                          await DatabaseService.instance.resetDatabase();
+            // Content area with search
+            Expanded(
+              child: FadeTransition(
+                opacity: _fadeAnimation,
+                child: Column(
+                  children: [
+                    // Search section
+                    _buildSearchSection(),
 
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('✅ Database reset successfully!'),
-                              backgroundColor: Colors.green,
-                            ),
-                          );
+                    // Content
+                    Expanded(
+                      child: Container(
+                        margin: const EdgeInsets.only(top: 10),
+                        child: Consumer<ClientProvider>(
+                          builder: (context, clientProvider, child) {
+                            if (clientProvider.isLoading) {
+                              return _buildLoadingState();
+                            }
 
-                          // Reload clients
-                          context.read<ClientProvider>().loadClients();
+                            if (clientProvider.error != null) {
+                              return _buildErrorState(clientProvider);
+                            }
 
-                        } catch (e) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text('❌ Reset failed: $e'),
-                              backgroundColor: Colors.red,
-                            ),
-                          );
-                        }
-                      },
-                      child: const Text('RESET'),
+                            final allClients = clientProvider.clients;
+                            final filteredClients = _getFilteredClients(allClients);
+
+                            if (allClients.isEmpty) {
+                              return _buildEmptyState();
+                            }
+
+                            if (filteredClients.isEmpty && _searchQuery.isNotEmpty) {
+                              return _buildNoSearchResultsState();
+                            }
+
+                            return _buildClientsList(filteredClients);
+                          },
+                        ),
+                      ),
                     ),
                   ],
                 ),
-              );
-            },
-            icon: const Icon(Icons.refresh),
-            tooltip: 'Reset Database',
+              ),
+            ),
+          ],
+        ),
+      ),
+
+      floatingActionButton: _buildModernFAB(),
+    );
+  }
+
+  Widget _buildLoadingState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [
+                BoxShadow(
+                  color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                  blurRadius: 20,
+                  offset: const Offset(0, 10),
+                ),
+              ],
+            ),
+            child: Column(
+              children: [
+                CircularProgressIndicator(
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                    Theme.of(context).colorScheme.primary,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'Se încarcă clienții...',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),
-      body: Consumer<ClientProvider>(
-        builder: (context, clientProvider, child) {
-          if (clientProvider.isLoading) {
-            return const Center(child: CircularProgressIndicator());
-          }
+    );
+  }
 
-          if (clientProvider.error != null) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(Icons.error, color: Colors.red, size: 64),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Error: ${clientProvider.error}',
-                    style: const TextStyle(color: Colors.red),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 16),
-                  ElevatedButton(
-                    onPressed: () {
-                      clientProvider.clearError();
-                      clientProvider.loadClients();
-                    },
-                    child: const Text('Retry'),
-                  ),
-                ],
+  Widget _buildErrorState(ClientProvider clientProvider) {
+    return Center(
+      child: Container(
+        margin: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.red.withOpacity(0.1),
+              blurRadius: 20,
+              offset: const Offset(0, 10),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.red.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(50),
               ),
-            );
-          }
-
-          final clients = clientProvider.clients;
-
-          if (clients.isEmpty) {
-            return const Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.people_outline, size: 64, color: Colors.grey),
-                  SizedBox(height: 16),
-                  Text(
-                    'No clients yet',
-                    style: TextStyle(fontSize: 18, color: Colors.grey),
-                  ),
-                  SizedBox(height: 8),
-                  Text(
-                    'Add your first client using the + button',
-                    style: TextStyle(color: Colors.grey),
-                  ),
-                ],
+              child: const Icon(
+                Icons.error_outline,
+                color: Colors.red,
+                size: 32,
               ),
-            );
-          }
-
-          return ListView.builder(
-            itemCount: clients.length,
-            itemBuilder: (context, index) {
-              final client = clients[index];
-              return ClientListTile(client: client);
-            },
-          );
-        },
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Ceva nu a funcționat corect...',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              clientProvider.error!,
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Colors.grey),
+            ),
+            const SizedBox(height: 24),
+            ElevatedButton.icon(
+              onPressed: () {
+                clientProvider.clearError();
+                clientProvider.loadClients();
+              },
+              icon: const Icon(Icons.refresh),
+              label: const Text('Reîncearcă'),
+            ),
+          ],
+        ),
       ),
-      floatingActionButton: FloatingActionButton(
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return Center(
+      child: Container(
+        margin: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(32),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+              blurRadius: 20,
+              offset: const Offset(0, 10),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                    Theme.of(context).colorScheme.secondary.withOpacity(0.1),
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(60),
+              ),
+              child: Icon(
+                Icons.people_outline,
+                size: 64,
+                color: Theme.of(context).colorScheme.primary,
+              ),
+            ),
+            const SizedBox(height: 24),
+            const Text(
+              'Nu există clienți',
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Adaugă primul tău client pentru a începe completarea formularelor',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Colors.grey.shade600,
+                fontSize: 16,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSearchSection() {
+    return TweenAnimationBuilder<double>(
+      duration: const Duration(milliseconds: 600),
+      tween: Tween(begin: 0.0, end: 1.0),
+      builder: (context, value, child) {
+        return Transform.translate(
+          offset: Offset(0, 30 * (1 - value)),
+          child: Opacity(
+            opacity: value,
+            child: Container(
+              margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                    blurRadius: 20,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
+              ),
+              child: TextField(
+                controller: _searchController,
+                decoration: InputDecoration(
+                  hintText: 'Caută clienți...',
+                  hintStyle: TextStyle(
+                    color: Colors.grey.shade500,
+                    fontSize: 16,
+                  ),
+                  prefixIcon: Container(
+                    margin: const EdgeInsets.all(12),
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                          Theme.of(context).colorScheme.secondary.withOpacity(0.1),
+                        ],
+                      ),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Icon(
+                      Icons.search,
+                      color: Theme.of(context).colorScheme.primary,
+                      size: 20,
+                    ),
+                  ),
+                  suffixIcon: _searchQuery.isNotEmpty
+                      ? Container(
+                    margin: const EdgeInsets.all(12),
+                    child: IconButton(
+                      onPressed: () {
+                        _searchController.clear();
+                        _onSearchChanged();
+                      },
+                      icon: Icon(
+                        Icons.clear,
+                        color: Colors.grey.shade400,
+                        size: 20,
+                      ),
+                      style: IconButton.styleFrom(
+                        padding: EdgeInsets.zero,
+                        minimumSize: const Size(24, 24),
+                      ),
+                    ),
+                  )
+                      : null,
+                  border: InputBorder.none,
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 16,
+                  ),
+                ),
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildNoSearchResultsState() {
+    return Center(
+      child: Container(
+        margin: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(32),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+              blurRadius: 20,
+              offset: const Offset(0, 10),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    Colors.orange.withOpacity(0.1),
+                    Colors.amber.withOpacity(0.1),
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(50),
+              ),
+              child: const Icon(
+                Icons.search_off,
+                size: 48,
+                color: Colors.orange,
+              ),
+            ),
+            const SizedBox(height: 24),
+            const Text(
+              'Nu s-au găsit clienți',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Niciun client nu conține "$_searchQuery".\nÎncearcă un alt termen de căutare (nume, email, adresă, telefon).',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Colors.grey.shade600,
+                fontSize: 16,
+              ),
+            ),
+            const SizedBox(height: 24),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                OutlinedButton.icon(
+                  onPressed: () {
+                    _searchController.clear();
+                    _onSearchChanged();
+                  },
+                  icon: const Icon(Icons.clear, size: 18),
+                  label: const Text('Reîncarcă toți clienții'),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildClientsList(List<Client> clients) {
+    return ListView.builder(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+      itemCount: clients.length,
+      itemBuilder: (context, index) {
+        return TweenAnimationBuilder<double>(
+          duration: Duration(milliseconds: 300 + (index * 100)),
+          tween: Tween(begin: 0.0, end: 1.0),
+          builder: (context, value, child) {
+            return Transform.translate(
+              offset: Offset(0, 50 * (1 - value)),
+              child: Opacity(
+                opacity: value,
+                child: ClientCard(client: clients[index]),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildModernFAB() {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            Theme.of(context).colorScheme.primary,
+            Theme.of(context).colorScheme.secondary,
+          ],
+        ),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Theme.of(context).colorScheme.primary.withOpacity(0.4),
+            blurRadius: 20,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: FloatingActionButton.extended(
         onPressed: _addNewClient,
-        tooltip: 'Add Client',
-        child: const Icon(Icons.add),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        icon: const Icon(Icons.add, color: Colors.white),
+        label: const Text(
+          'Adaugă Client',
+          style: TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
       ),
     );
   }
 
   void _addNewClient() async {
     final result = await Navigator.of(context).push<bool>(
-      MaterialPageRoute(
-        builder: (context) => const AddEditClientScreen(),
+      PageRouteBuilder(
+        pageBuilder: (context, animation, secondaryAnimation) => const AddEditClientScreen(),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          return SlideTransition(
+            position: animation.drive(
+              Tween(begin: const Offset(1.0, 0.0), end: Offset.zero)
+                  .chain(CurveTween(curve: Curves.easeInOut)),
+            ),
+            child: child,
+          );
+        },
       ),
     );
 
-    // If client was added successfully, refresh the list
     if (result == true && mounted) {
       context.read<ClientProvider>().loadClients();
     }
+  }
+
+  void _showResetDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text('Resetează Baza de Date'),
+        content: const Text('Toate datele vor fi șterse. Ești sigur că vrei să continui?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Renunță'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              try {
+                await DatabaseService.instance.resetDatabase();
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('✅ Aplicație resetată cu succes!'),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+                  context.read<ClientProvider>().loadClients();
+                }
+              } catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('❌ Resetarea aplicației a eșuat: $e'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+              }
+            },
+            child: const Text('RESET'),
+          ),
+        ],
+      ),
+    );
   }
 }
 
@@ -212,7 +658,7 @@ class ClientListTile extends StatelessWidget {
         children: [
           ListTile(
             leading: const Icon(Icons.edit),
-            title: const Text('Edit Client'),
+            title: const Text('Editează Client'),
             onTap: () async {
               Navigator.pop(context);
               final result = await Navigator.of(context).push<bool>(
@@ -227,7 +673,7 @@ class ClientListTile extends StatelessWidget {
           ),
           ListTile(
             leading: const Icon(Icons.delete, color: Colors.red),
-            title: const Text('Delete Client', style: TextStyle(color: Colors.red)),
+            title: const Text('Șterge Client', style: TextStyle(color: Colors.red)),
             onTap: () {
               Navigator.pop(context);
               _confirmDelete(context, client);
@@ -242,12 +688,12 @@ class ClientListTile extends StatelessWidget {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Delete Client'),
-        content: Text('Are you sure you want to delete "${client.name}"?'),
+        title: const Text('Șterge Client'),
+        content: Text('Ești sigur că vrei să ștergi "${client.name}"?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
+            child: const Text('Renunță'),
           ),
           TextButton(
             onPressed: () async {
@@ -256,12 +702,12 @@ class ClientListTile extends StatelessWidget {
               if (context.mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(content: Text(success
-                      ? 'Client deleted successfully'
-                      : 'Failed to delete client')),
+                      ? 'Client șters cu succes'
+                      : 'Ștergerea clientului a eșuat')),
                 );
               }
             },
-            child: const Text('Delete', style: TextStyle(color: Colors.red)),
+            child: const Text('Șterge', style: TextStyle(color: Colors.red)),
           ),
         ],
       ),

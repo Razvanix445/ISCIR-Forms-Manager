@@ -54,10 +54,6 @@ class FormEditWrapper extends StatelessWidget {
             final client = clientSnapshot.data!;
 
             switch (form.formType) {
-              // case FormType.anexa3Part1:
-              //   return UpdatedAnexa3Part1FormScreen(form: form, client: client);
-              // case FormType.anexa3Part2:
-              //   return Anexa3Part2FormScreen(form: form, client: client);
               case FormType.raportIscir:
                 return RaportIscirFormScreen(form: form, client: client);
               case FormType.anexa4:
