@@ -1,5 +1,5 @@
 class Client {
-  final int? id;
+  final String? id;
   final String firstName;
   final String lastName;
   final String email;
@@ -29,7 +29,6 @@ class Client {
 
   Map<String, dynamic> toMap() {
     return {
-      'id': id,
       'first_name': firstName,
       'last_name': lastName,
       'email': email,
@@ -45,7 +44,7 @@ class Client {
 
   factory Client.fromMap(Map<String, dynamic> map) {
     return Client(
-      id: map['id']?.toInt(),
+      id: map['id']?.toString(),
       firstName: map['first_name'] ?? '',
       lastName: map['last_name'] ?? '',
       email: map['email'] ?? '',
@@ -60,7 +59,7 @@ class Client {
   }
 
   Client copyWith({
-    int? id,
+    String? id,
     String? firstName,
     String? lastName,
     String? email,

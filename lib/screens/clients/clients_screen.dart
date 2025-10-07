@@ -3,8 +3,11 @@ import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 import '../../main.dart';
 import '../../providers/client_provider.dart';
+import '../../providers/auth_provider.dart';
 import '../../models/client.dart';
 import '../../services/database_service.dart';
+import '../../services/excel_generation_service.dart';
+import '../excel/trimester_selection_dialog.dart';
 import '../forms/widgets/client_card.dart';
 import 'add_edit_client_screen.dart';
 
@@ -76,6 +79,50 @@ class _ClientsScreenState extends State<ClientsScreen> with TickerProviderStateM
     }).toList();
   }
 
+  void _showUserMenu() {
+    final authProvider = context.read<MyAuthProvider>();
+
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) =>
+          Container(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ListTile(
+                  leading: CircleAvatar(
+                    backgroundColor: Theme
+                        .of(context)
+                        .colorScheme
+                        .primary,
+                    child: Text(
+                      authProvider.userDisplayName[0].toUpperCase(),
+                      style: const TextStyle(color: Colors.white),
+                    ),
+                  ),
+                  title: Text(authProvider.userDisplayName),
+                  subtitle: Text(authProvider.user?.email ?? ''),
+                ),
+                const Divider(),
+                ListTile(
+                  leading: const Icon(Icons.logout, color: Colors.red),
+                  title: const Text(
+                      'Ieși din cont', style: TextStyle(color: Colors.red)),
+                  onTap: () async {
+                    Navigator.pop(context);
+                    await authProvider.signOut();
+                  },
+                ),
+              ],
+            ),
+          ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -83,7 +130,6 @@ class _ClientsScreenState extends State<ClientsScreen> with TickerProviderStateM
       body: GradientBackground(
         child: Column(
           children: [
-            // Modern header instead of AppBar
             ModernHeader(
               title: 'Formulare ISCIR',
               subtitle: 'Gestionează-ți clienții și completează rapoarte',
@@ -101,30 +147,61 @@ class _ClientsScreenState extends State<ClientsScreen> with TickerProviderStateM
                 ),
               ),
               actions: [
+                // Excel export button
                 Container(
+                  margin: const EdgeInsets.only(right: 8),
                   decoration: BoxDecoration(
                     color: Colors.white.withOpacity(0.2),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: IconButton(
-                    onPressed: _showResetDialog,
-                    icon: const Icon(Icons.refresh, color: Colors.white),
-                    tooltip: 'Resetează Baza de Date',
+                    icon: const Icon(
+                      Icons.table_chart,
+                      color: Colors.white,
+                    ),
+                    onPressed: () => _generateExcelReport(context),
+                    tooltip: 'Generează registru Excel',
+                  ),
+                ),
+
+                // User menu button
+                Container(
+                  margin: const EdgeInsets.only(right: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Consumer<MyAuthProvider>(
+                    builder: (context, authProvider, _) {
+                      return IconButton(
+                        onPressed: _showUserMenu,
+                        icon: CircleAvatar(
+                          backgroundColor: Colors.white,
+                          child: Text(
+                            authProvider.userDisplayName[0].toUpperCase(),
+                            style: TextStyle(
+                              color: Theme
+                                  .of(context)
+                                  .colorScheme
+                                  .primary,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        tooltip: 'Meniu Utilizator',
+                      );
+                    },
                   ),
                 ),
               ],
             ),
 
-            // Content area with search
             Expanded(
               child: FadeTransition(
                 opacity: _fadeAnimation,
                 child: Column(
                   children: [
-                    // Search section
                     _buildSearchSection(),
-
-                    // Content
                     Expanded(
                       child: Container(
                         margin: const EdgeInsets.only(top: 10),
@@ -139,13 +216,15 @@ class _ClientsScreenState extends State<ClientsScreen> with TickerProviderStateM
                             }
 
                             final allClients = clientProvider.clients;
-                            final filteredClients = _getFilteredClients(allClients);
+                            final filteredClients = _getFilteredClients(
+                                allClients);
 
                             if (allClients.isEmpty) {
                               return _buildEmptyState();
                             }
 
-                            if (filteredClients.isEmpty && _searchQuery.isNotEmpty) {
+                            if (filteredClients.isEmpty &&
+                                _searchQuery.isNotEmpty) {
                               return _buildNoSearchResultsState();
                             }
 
@@ -161,7 +240,6 @@ class _ClientsScreenState extends State<ClientsScreen> with TickerProviderStateM
           ],
         ),
       ),
-
       floatingActionButton: _buildModernFAB(),
     );
   }
@@ -178,7 +256,11 @@ class _ClientsScreenState extends State<ClientsScreen> with TickerProviderStateM
               borderRadius: BorderRadius.circular(20),
               boxShadow: [
                 BoxShadow(
-                  color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                  color: Theme
+                      .of(context)
+                      .colorScheme
+                      .primary
+                      .withOpacity(0.1),
                   blurRadius: 20,
                   offset: const Offset(0, 10),
                 ),
@@ -188,7 +270,10 @@ class _ClientsScreenState extends State<ClientsScreen> with TickerProviderStateM
               children: [
                 CircularProgressIndicator(
                   valueColor: AlwaysStoppedAnimation<Color>(
-                    Theme.of(context).colorScheme.primary,
+                    Theme
+                        .of(context)
+                        .colorScheme
+                        .primary,
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -277,7 +362,11 @@ class _ClientsScreenState extends State<ClientsScreen> with TickerProviderStateM
           borderRadius: BorderRadius.circular(20),
           boxShadow: [
             BoxShadow(
-              color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+              color: Theme
+                  .of(context)
+                  .colorScheme
+                  .primary
+                  .withOpacity(0.1),
               blurRadius: 20,
               offset: const Offset(0, 10),
             ),
@@ -291,8 +380,16 @@ class _ClientsScreenState extends State<ClientsScreen> with TickerProviderStateM
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   colors: [
-                    Theme.of(context).colorScheme.primary.withOpacity(0.1),
-                    Theme.of(context).colorScheme.secondary.withOpacity(0.1),
+                    Theme
+                        .of(context)
+                        .colorScheme
+                        .primary
+                        .withOpacity(0.1),
+                    Theme
+                        .of(context)
+                        .colorScheme
+                        .secondary
+                        .withOpacity(0.1),
                   ],
                 ),
                 borderRadius: BorderRadius.circular(60),
@@ -300,7 +397,10 @@ class _ClientsScreenState extends State<ClientsScreen> with TickerProviderStateM
               child: Icon(
                 Icons.people_outline,
                 size: 64,
-                color: Theme.of(context).colorScheme.primary,
+                color: Theme
+                    .of(context)
+                    .colorScheme
+                    .primary,
               ),
             ),
             const SizedBox(height: 24),
@@ -342,7 +442,11 @@ class _ClientsScreenState extends State<ClientsScreen> with TickerProviderStateM
                 borderRadius: BorderRadius.circular(20),
                 boxShadow: [
                   BoxShadow(
-                    color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                    color: Theme
+                        .of(context)
+                        .colorScheme
+                        .primary
+                        .withOpacity(0.1),
                     blurRadius: 20,
                     offset: const Offset(0, 8),
                   ),
@@ -362,15 +466,26 @@ class _ClientsScreenState extends State<ClientsScreen> with TickerProviderStateM
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
                         colors: [
-                          Theme.of(context).colorScheme.primary.withOpacity(0.1),
-                          Theme.of(context).colorScheme.secondary.withOpacity(0.1),
+                          Theme
+                              .of(context)
+                              .colorScheme
+                              .primary
+                              .withOpacity(0.1),
+                          Theme
+                              .of(context)
+                              .colorScheme
+                              .secondary
+                              .withOpacity(0.1),
                         ],
                       ),
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: Icon(
                       Icons.search,
-                      color: Theme.of(context).colorScheme.primary,
+                      color: Theme
+                          .of(context)
+                          .colorScheme
+                          .primary,
                       size: 20,
                     ),
                   ),
@@ -422,7 +537,11 @@ class _ClientsScreenState extends State<ClientsScreen> with TickerProviderStateM
           borderRadius: BorderRadius.circular(20),
           boxShadow: [
             BoxShadow(
-              color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+              color: Theme
+                  .of(context)
+                  .colorScheme
+                  .primary
+                  .withOpacity(0.1),
               blurRadius: 20,
               offset: const Offset(0, 10),
             ),
@@ -477,7 +596,8 @@ class _ClientsScreenState extends State<ClientsScreen> with TickerProviderStateM
                   icon: const Icon(Icons.clear, size: 18),
                   label: const Text('Reîncarcă toți clienții'),
                   style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 20, vertical: 12),
                   ),
                 ),
               ],
@@ -515,14 +635,24 @@ class _ClientsScreenState extends State<ClientsScreen> with TickerProviderStateM
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
-            Theme.of(context).colorScheme.primary,
-            Theme.of(context).colorScheme.secondary,
+            Theme
+                .of(context)
+                .colorScheme
+                .primary,
+            Theme
+                .of(context)
+                .colorScheme
+                .secondary,
           ],
         ),
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Theme.of(context).colorScheme.primary.withOpacity(0.4),
+            color: Theme
+                .of(context)
+                .colorScheme
+                .primary
+                .withOpacity(0.4),
             blurRadius: 20,
             offset: const Offset(0, 10),
           ),
@@ -547,7 +677,8 @@ class _ClientsScreenState extends State<ClientsScreen> with TickerProviderStateM
   void _addNewClient() async {
     final result = await Navigator.of(context).push<bool>(
       PageRouteBuilder(
-        pageBuilder: (context, animation, secondaryAnimation) => const AddEditClientScreen(),
+        pageBuilder: (context, animation,
+            secondaryAnimation) => const AddEditClientScreen(),
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
           return SlideTransition(
             position: animation.drive(
@@ -565,48 +696,78 @@ class _ClientsScreenState extends State<ClientsScreen> with TickerProviderStateM
     }
   }
 
-  void _showResetDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text('Resetează Baza de Date'),
-        content: const Text('Toate datele vor fi șterse. Ești sigur că vrei să continui?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Renunță'),
+  Future<void> _generateExcelReport(BuildContext context) async {
+    try {
+      // Show trimester selection dialog
+      final selection = await showDialog<Map<String, int>>(
+        context: context,
+        builder: (context) => const TrimesterSelectionDialog(),
+      );
+
+      // User cancelled
+      if (selection == null) return;
+
+      final year = selection['year']!;
+      final trimester = selection['trimester']!;
+
+      // Show loading dialog
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => Center(
+          child: Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.green.withOpacity(0.1),
+                  blurRadius: 20,
+                  offset: const Offset(0, 10),
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CircularProgressIndicator(
+                  valueColor: AlwaysStoppedAnimation<Color>(Colors.green),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'Se generează registrul pentru\nTrimestrul $trimester, $year...',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
           ),
-          ElevatedButton(
-            onPressed: () async {
-              Navigator.pop(context);
-              try {
-                await DatabaseService.instance.resetDatabase();
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('✅ Aplicație resetată cu succes!'),
-                      backgroundColor: Colors.green,
-                    ),
-                  );
-                  context.read<ClientProvider>().loadClients();
-                }
-              } catch (e) {
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('❌ Resetarea aplicației a eșuat: $e'),
-                      backgroundColor: Colors.red,
-                    ),
-                  );
-                }
-              }
-            },
-            child: const Text('RESET'),
-          ),
-        ],
-      ),
-    );
+        ),
+      );
+
+      await ExcelGenerationService.instance.generateClientReport(
+        year: year,
+        trimester: trimester,
+      );
+
+      Navigator.pop(context);
+
+    } catch (e) {
+      if (Navigator.canPop(context)) Navigator.pop(context);
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('❌ Eroare la generarea registrului: $e'),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        ),
+      );
+    }
   }
 }
 

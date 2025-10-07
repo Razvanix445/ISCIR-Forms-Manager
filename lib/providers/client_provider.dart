@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import '../models/client.dart';
-import '../services/database_service.dart';
+import '../services/firestore_service.dart';
+import '../services/sync_service.dart';
 
 class ClientProvider with ChangeNotifier {
   List<Client> _clients = [];
@@ -18,11 +19,10 @@ class ClientProvider with ChangeNotifier {
     notifyListeners();
 
     try {
-      final result = await DatabaseService.instance.getAllClients();
-      _clients = result ?? []; // Handle null result
-      print('Loaded ${_clients.length} clients'); // Debug log
+      _clients = await SyncService.instance.loadClients(); // Changed
+      print('Loaded ${_clients.length} clients');
     } catch (e) {
-      print('Error loading clients: $e'); // Debug log
+      print('Error loading clients: $e');
       _error = 'Failed to load clients: $e';
       _clients = [];
     } finally {
@@ -33,14 +33,18 @@ class ClientProvider with ChangeNotifier {
 
   // Add a new client
   Future<bool> addClient(Client client) async {
+    print('DEBUG: addClient called'); // Add this
     try {
-      final id = await DatabaseService.instance.createClient(client);
-      final newClient = client.copyWith(id: id);
+      final docId = await SyncService.instance.createClient(client);
+      print('DEBUG: Created client with ID: $docId'); // Add this
+      final newClient = client.copyWith(id: docId);
       _clients.add(newClient);
-      _clients.sort((a, b) => a.name.compareTo(b.name)); // Keep sorted
+      _clients.sort((a, b) => a.name.compareTo(b.name));
       notifyListeners();
+      print('DEBUG: Client added to list. Total clients: ${_clients.length}'); // Add this
       return true;
     } catch (e) {
+      print('DEBUG: Error adding client: $e'); // Add this
       _error = 'Failed to add client: $e';
       notifyListeners();
       return false;
@@ -50,7 +54,7 @@ class ClientProvider with ChangeNotifier {
   // Update existing client
   Future<bool> updateClient(Client client) async {
     try {
-      await DatabaseService.instance.updateClient(client);
+      await SyncService.instance.updateClient(client);
       final index = _clients.indexWhere((c) => c.id == client.id);
       if (index != -1) {
         _clients[index] = client;
@@ -66,9 +70,9 @@ class ClientProvider with ChangeNotifier {
   }
 
   // Delete client
-  Future<bool> deleteClient(int id) async {
+  Future<bool> deleteClient(String id) async {
     try {
-      await DatabaseService.instance.deleteClient(id);
+      await SyncService.instance.deleteClient(id);
       _clients.removeWhere((client) => client.id == id);
       notifyListeners();
       return true;
@@ -80,7 +84,7 @@ class ClientProvider with ChangeNotifier {
   }
 
   // Get specific client by ID
-  Client? getClientById(int id) {
+  Client? getClientById(String id) {
     try {
       return _clients.firstWhere((client) => client.id == id);
     } catch (e) {

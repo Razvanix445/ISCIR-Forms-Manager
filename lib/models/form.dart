@@ -1,46 +1,20 @@
 import 'package:flutter/material.dart';
 
 enum FormType {
-  // anexa3Part1('Anexa 3 Part 1', 'Raport de verificări - Partea 1'),
-  // anexa3Part2('Anexa 3 Part 2', 'Raport de verificări - Partea 2'),
-  raportIscir('Anexa 3', 'Raport de verificări'),
-  anexa4('Anexa 4', 'Registrul de evidență a aparatelor');
+  raportIscir('Anexa 3', 'Raport de verificări');
 
   const FormType(this.code, this.description);
   final String code;
   final String description;
 
-  // Get the PDF template path for each form type
-  String get templatePath {
-    switch (this) {
-      // case FormType.anexa3Part1:
-      //   return 'assets/templates/anexa3_part1.pdf';
-      // case FormType.anexa3Part2:
-      //   return 'assets/templates/anexa3_part2.pdf';
-      case FormType.raportIscir:
-        return 'assets/templates/raport_iscir.pdf';
-      case FormType.anexa4:
-        return 'assets/templates/anexa4_template.pdf';
-    }
-  }
+  String get templatePath => 'assets/templates/raport_iscir.pdf';
 
-  IconData get icon {
-    switch (this) {
-      // case FormType.anexa3Part1:
-      //   return Icons.assignment;
-      // case FormType.anexa3Part2:
-      //   return Icons.assignment_turned_in;
-      case FormType.raportIscir:
-        return Icons.assignment;
-      case FormType.anexa4:
-        return Icons.list_alt;
-    }
-  }
+  IconData get icon => Icons.assignment;
 }
 
 class ISCIRForm {
-  final int? id;
-  final int clientId;
+  final String? id;
+  final String clientId;
   final FormType formType;
   final String reportNumber;
   final DateTime reportDate;
@@ -51,7 +25,7 @@ class ISCIRForm {
   ISCIRForm({
     this.id,
     required this.clientId,
-    required this.formType,
+    this.formType = FormType.raportIscir,
     required this.reportNumber,
     required this.reportDate,
     required this.createdAt,
@@ -61,7 +35,6 @@ class ISCIRForm {
 
   Map<String, dynamic> toMap() {
     return {
-      'id': id,
       'client_id': clientId,
       'form_type': formType.code,
       'report_number': reportNumber,
@@ -71,25 +44,35 @@ class ISCIRForm {
     };
   }
 
+  Map<String, dynamic> toFirestoreMap() {
+    return {
+      'clientId': clientId,
+      'formType': formType.code,
+      'reportNumber': reportNumber,
+      'reportDate': reportDate.toIso8601String(),
+      'createdAt': createdAt.toIso8601String(),
+      'updatedAt': updatedAt.toIso8601String(),
+      'formData': formData,
+    };
+  }
+
   factory ISCIRForm.fromMap(Map<String, dynamic> map) {
     return ISCIRForm(
-      id: map['id']?.toInt(),
-      clientId: map['client_id']?.toInt() ?? 0,
-      formType: FormType.values.firstWhere(
-            (type) => type.code == map['form_type'],
-        orElse: () => FormType.raportIscir,
-      ),
-      reportNumber: map['report_number'] ?? '',
-      reportDate: DateTime.parse(map['report_date']),
-      createdAt: DateTime.parse(map['created_at']),
-      updatedAt: DateTime.parse(map['updated_at']),
-      formData: {},
+      id: map['id']?.toString(),
+      clientId: map['client_id']?.toString() ?? map['clientId']?.toString() ?? '',
+      formType: FormType.raportIscir, // Always raportIscir now
+      reportNumber: map['report_number'] ?? map['reportNumber'] ?? '',
+      reportDate: DateTime.parse(map['report_date'] ?? map['reportDate']),
+      createdAt: DateTime.parse(map['created_at'] ?? map['createdAt']),
+      updatedAt: DateTime.parse(map['updated_at'] ?? map['updatedAt']),
+      formData: map['form_data'] as Map<String, dynamic>? ??
+          map['formData'] as Map<String, dynamic>? ?? {},
     );
   }
 
   ISCIRForm copyWith({
-    int? id,
-    int? clientId,
+    String? id,
+    String? clientId,
     FormType? formType,
     String? reportNumber,
     DateTime? reportDate,

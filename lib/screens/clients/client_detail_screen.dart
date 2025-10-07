@@ -6,13 +6,13 @@ import '../../providers/client_provider.dart';
 import '../../providers/form_provider.dart';
 import '../../models/client.dart';
 import '../../models/form.dart';
-import '../../services/database_service.dart';
+import '../../services/firestore_service.dart';
 import '../../services/pdf_generation_service.dart';
 import '../pdf/pdf_export_screen.dart';
 import 'add_edit_client_screen.dart';
 
 class ClientDetailScreen extends StatefulWidget {
-  final int clientId;
+  final String clientId;
 
   const ClientDetailScreen({super.key, required this.clientId});
 
@@ -263,22 +263,6 @@ class _ClientDetailScreenState extends State<ClientDetailScreen> with TickerProv
                                 fontSize: 24,
                                 fontWeight: FontWeight.bold,
                                 color: Colors.black87,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                              decoration: BoxDecoration(
-                                color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                              child: Text(
-                                'ID: ${client.id}',
-                                style: TextStyle(
-                                  color: Theme.of(context).colorScheme.primary,
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 12,
-                                ),
                               ),
                             ),
                           ],
@@ -932,21 +916,11 @@ class ModernFormListTile extends StatelessWidget {
   }
 
   Color _getFormColor() {
-    switch (form.formType) {
-      case FormType.raportIscir:
-        return Colors.blue;
-      case FormType.anexa4:
-        return Colors.green;
-    }
+    return Colors.blue;
   }
 
   IconData _getFormIconData() {
-    switch (form.formType) {
-      case FormType.raportIscir:
-        return Icons.assignment;
-      case FormType.anexa4:
-        return Icons.list_alt;
-    }
+    return Icons.assignment;
   }
 
   void _onFormTap(BuildContext context) {
@@ -995,13 +969,13 @@ class ModernFormListTile extends StatelessWidget {
                   () => _generatePdf(context),
               Colors.orange,
             ),
-            _buildOptionTile(
-              context,
-              Icons.print,
-              'Imprimă PDF',
-                  () => _printForm(context),
-              Colors.purple,
-            ),
+            // _buildOptionTile(
+            //   context,
+            //   Icons.print,
+            //   'Imprimă PDF',
+            //       () => _printForm(context),
+            //   Colors.purple,
+            // ),
             _buildOptionTile(
               context,
               Icons.delete,
@@ -1057,7 +1031,6 @@ class ModernFormListTile extends StatelessWidget {
 
   Future<void> _generatePdf(BuildContext context) async {
     try {
-      // Show loading dialog
       showDialog(
         context: context,
         barrierDismissible: false,
@@ -1095,7 +1068,6 @@ class ModernFormListTile extends StatelessWidget {
         ),
       );
 
-      // Get the client for this form
       final client = context.read<ClientProvider>().getClientById(form.clientId);
       if (client == null) {
         Navigator.pop(context);
@@ -1110,11 +1082,13 @@ class ModernFormListTile extends StatelessWidget {
         return;
       }
 
-      // Load the complete form data from database
-      final formData = await DatabaseService.instance.getFormData(form.id!);
+      // FIXED: Use form.formData directly (it's already loaded with the form)
+      final completeFormData = Map<String, dynamic>.from(form.formData);
 
-      // Add client data to form data for PDF generation
-      final completeFormData = Map<String, dynamic>.from(formData);
+      print('DEBUG: Form data before adding client: ${completeFormData.keys.length} fields');
+      print('DEBUG: Form data keys: ${completeFormData.keys.toList()}');
+
+      // Add client data
       completeFormData.addAll({
         'client_name': client.name,
         'client_address': client.address,
@@ -1133,22 +1107,22 @@ class ModernFormListTile extends StatelessWidget {
         'detinator_client': client.holder,
       });
 
-      Navigator.pop(context); // Close loading dialog
+      print('DEBUG: Form data after adding client: ${completeFormData.keys.length} fields');
 
-      // Navigate to PDF export screen
+      Navigator.pop(context);
+
       Navigator.of(context).push(
         MaterialPageRoute(
           builder: (context) => PdfExportScreen(
             form: form,
             client: client,
             formData: completeFormData,
-            selectedPdfType: 'raport_iscir', // Default to raport ISCIR
+            selectedPdfType: 'raport_iscir',
           ),
         ),
       );
 
     } catch (e) {
-      // Close loading dialog if still open
       if (Navigator.canPop(context)) Navigator.pop(context);
 
       ScaffoldMessenger.of(context).showSnackBar(
@@ -1218,7 +1192,7 @@ class ModernFormListTile extends StatelessWidget {
       }
 
       // Load the complete form data from database
-      final formData = await DatabaseService.instance.getFormData(form.id!);
+      final formData = await FirestoreService.instance.getFormData(form.id!);
 
       // Add client data to form data for PDF generation
       final completeFormData = Map<String, dynamic>.from(formData);

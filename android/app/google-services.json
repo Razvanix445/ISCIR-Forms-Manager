@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "214033176425",
+    "project_id": "iscir-forms-auth",
+    "storage_bucket": "iscir-forms-auth.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:214033176425:android:a4fe3250ea030243ac4ff8",
+        "android_client_info": {
+          "package_name": "com.example.iscir_forms_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAOmKLwENPgj7G8hKP6XTz7Pz9N2Rypf5I"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
