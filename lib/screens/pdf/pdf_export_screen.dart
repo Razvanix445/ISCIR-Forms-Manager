@@ -5,13 +5,6 @@ import '../../models/form.dart';
 import '../../models/client.dart';
 import '../../services/pdf_generation_service.dart';
 
-import 'dart:typed_data';
-import 'package:flutter/material.dart';
-import 'package:printing/printing.dart';
-import '../../models/form.dart';
-import '../../models/client.dart';
-import '../../services/pdf_generation_service.dart';
-
 class PdfExportScreen extends StatefulWidget {
   final ISCIRForm form;
   final Client client;
@@ -282,48 +275,42 @@ class _PdfExportScreenState extends State<PdfExportScreen> with TickerProviderSt
 
     return Container(
       color: Colors.white,
-      child: PdfPreview(
-        build: (format) => _currentPdfBytes!,
-        allowSharing: false,
-        allowPrinting: false,
-        canChangePageFormat: false,
-        canChangeOrientation: false,
-        canDebug: false,
-        useActions: false,
-        maxPageWidth: 700,
+      child: InteractiveViewer(
+        panEnabled: true, // Allow dragging
+        scaleEnabled: true, // Allow pinch-to-zoom
+        minScale: 0.8,
+        maxScale: 4.0,
+        child: PdfPreview(
+          build: (format) => _currentPdfBytes!,
+          allowSharing: false,
+          allowPrinting: false,
+          canChangePageFormat: false,
+          canChangeOrientation: false,
+          canDebug: false,
+          useActions: false,
+          maxPageWidth: 700,
+        ),
       ),
     );
   }
 
   Widget _buildFloatingActions() {
-    if (_currentPdfBytes == null) return const SizedBox();
-
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
         _buildFAB(
           icon: Icons.share,
-          color: Colors.purple,
+          color: Colors.green,
           onPressed: _sharePdf,
-          tooltip: 'Partajează PDF',
-          delay: 0,
-        ),
-        const SizedBox(height: 12),
-        _buildFAB(
-          icon: Icons.print,
-          color: Colors.orange,
-          onPressed: _printPdf,
-          tooltip: 'Imprimă PDF',
+          tooltip: 'Partajează',
           delay: 100,
         ),
         const SizedBox(height: 12),
         _buildFAB(
-          icon: widget.selectedPdfType == 'raport_iscir'
-              ? Icons.list_alt
-              : Icons.assignment,
-          color: _getPdfColor(widget.selectedPdfType),
-          onPressed: _quickSwitchPdf,
-          tooltip: 'Schimbă tip PDF',
+          icon: Icons.print,
+          color: Colors.purple,
+          onPressed: _printPdf,
+          tooltip: 'Imprimă',
           delay: 200,
         ),
       ],
@@ -357,57 +344,27 @@ class _PdfExportScreenState extends State<PdfExportScreen> with TickerProviderSt
 
   // Helper methods remain the same
   String _getPdfDisplayName(String pdfType) {
-    switch (pdfType) {
-      case 'raport_iscir':
-        return 'Raport ISCIR';
-      case 'anexa4':
-        return 'Anexa 4';
-      default:
-        return 'PDF Document';
-    }
+    return 'Raport ISCIR';
   }
 
   String _getPdfDescription(String pdfType) {
-    switch (pdfType) {
-      case 'raport_iscir':
-        return 'Raport de verificări și probe';
-      case 'anexa4':
-        return 'Registru de evidență a aparatelor';
-      default:
-        return 'Document PDF';
-    }
+    return 'Raport de verificări și probe';
   }
 
   IconData _getPdfIcon(String pdfType) {
-    switch (pdfType) {
-      case 'raport_iscir':
-        return Icons.assignment;
-      case 'anexa4':
-        return Icons.list_alt;
-      default:
-        return Icons.description;
-    }
+    return Icons.assignment;
   }
 
   Color _getPdfColor(String pdfType) {
-    switch (pdfType) {
-      case 'raport_iscir':
-        return Colors.blue;
-      case 'anexa4':
-        return Colors.green;
-      default:
-        return Colors.grey;
-    }
+    return Colors.blue;
   }
 
-  // Action methods remain the same structure but with updated UI feedback
   Future<void> _generatePdf() async {
     setState(() {
       _isGenerating = true;
       _currentPdfBytes = null;
     });
 
-    // Start header animation
     _animationController.forward();
 
     try {
@@ -416,7 +373,7 @@ class _PdfExportScreenState extends State<PdfExportScreen> with TickerProviderSt
         form: widget.form,
         client: widget.client,
         formData: widget.formData,
-        specificPdfType: widget.selectedPdfType,
+        specificPdfType: 'raport_iscir',
       );
 
       _currentFileName = _generateSafeFileName();
@@ -434,11 +391,10 @@ class _PdfExportScreenState extends State<PdfExportScreen> with TickerProviderSt
   }
 
   String _generateSafeFileName() {
-    final pdfTypeName = widget.selectedPdfType.replaceAll('_', '');
     final clientName = widget.client.name.replaceAll(' ', '_').replaceAll('/', '_');
     final reportNumber = widget.form.reportNumber.replaceAll('/', '_');
     final dateStr = DateTime.now().toIso8601String().split('T')[0];
-    return '${pdfTypeName}_${clientName}_${reportNumber}_$dateStr.pdf';
+    return 'RaportISCIR_${clientName}_${reportNumber}_$dateStr.pdf';
   }
 
   Future<void> _regeneratePdf() async {
@@ -462,33 +418,6 @@ class _PdfExportScreenState extends State<PdfExportScreen> with TickerProviderSt
     } catch (e) {
       _showErrorSnackBar('Eroare la imprimare: $e');
     }
-  }
-
-  void _quickSwitchPdf() {
-    final newType = widget.selectedPdfType == 'raport_iscir' ? 'anexa4' : 'raport_iscir';
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(
-        builder: (context) => PdfExportScreen(
-          form: widget.form,
-          client: widget.client,
-          formData: widget.formData,
-          selectedPdfType: newType,
-        ),
-      ),
-    );
-  }
-
-  void _showSuccessSnackBar(String message) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: Colors.green,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      ),
-    );
   }
 
   void _showErrorSnackBar(String message) {

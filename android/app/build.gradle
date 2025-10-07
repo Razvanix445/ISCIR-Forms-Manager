@@ -24,7 +24,7 @@ android {
         applicationId = "com.example.iscir_forms_app"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
-        minSdkVersion flutter.minSdkVersion
+        minSdkVersion 23
         targetSdkVersion 35
         compileSdkVersion 35
         versionCode = flutter.versionCode
@@ -43,3 +43,5 @@ android {
 flutter {
     source = "../.."
 }
+
+apply plugin: 'com.google.gms.google-services'

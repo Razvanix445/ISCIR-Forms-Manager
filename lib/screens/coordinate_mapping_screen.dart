@@ -33,8 +33,7 @@ class CoordinateMappingScreen extends StatelessWidget {
                   context,
                   MaterialPageRoute(
                     builder: (context) => const SimpleCoordinateMappingTool(
-                      // templateAssetPath: 'assets/templates/raport_iscir.png',
-                      templateAssetPath: 'assets/templates/anexa4_template.png',
+                      templateAssetPath: 'assets/templates/raport_iscir.png',
                       formType: 'Raport ISCIR',
                     ),
                   ),

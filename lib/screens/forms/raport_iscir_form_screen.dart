@@ -7,7 +7,6 @@ import 'package:iscir_forms_app/screens/forms/pages/raport_iscir_page2.dart';
 import 'package:iscir_forms_app/screens/forms/pages/raport_iscir_page3.dart';
 import 'package:iscir_forms_app/screens/forms/pages/raport_iscir_page4.dart';
 import 'package:iscir_forms_app/screens/forms/pages/raport_iscir_page5.dart';
-import 'package:iscir_forms_app/screens/forms/pdf_selection_dialog.dart';
 import 'package:provider/provider.dart';
 
 import '../../main.dart';
@@ -15,6 +14,7 @@ import '../../models/client.dart';
 import '../../models/form.dart';
 import '../../providers/form_provider.dart';
 import '../../services/database_service.dart';
+import '../../services/firestore_service.dart';
 import '../pdf/pdf_export_screen.dart';
 
 class RaportIscirFormScreen extends StatefulWidget {
@@ -132,7 +132,7 @@ class _RaportIscirFormScreenState extends State<RaportIscirFormScreen> with Tick
       'producator': '',
       'tip_aparat': '',
       'cu_aer': 'aspirat',
-      'cu_alimentare': 'manuala',
+      'cu_alimentare': 'automata',
     });
   }
 
@@ -164,7 +164,7 @@ class _RaportIscirFormScreenState extends State<RaportIscirFormScreen> with Tick
 
       'reglat_sarcina_aparat': 'DA',
 
-      'tip_tiraj': 'natural',
+      'tip_tiraj': 'fortat',
       'tiraj': 'DA',
       'presiune_rampa': 'DA',
       'presiune_arzator': 'DA',
@@ -614,18 +614,6 @@ class _RaportIscirFormScreenState extends State<RaportIscirFormScreen> with Tick
 
     _saveCurrentPageData();
 
-    // Show PDF selection dialog
-    final selectedPdfType = await showDialog<String>(
-      context: context,
-      builder: (context) => PdfSelectionDialog(
-        form: widget.form,
-        client: widget.client,
-        formData: _gatherCompleteFormData(),
-      ),
-    );
-
-    if (selectedPdfType == null) return;
-
     // Show loading dialog
     showDialog(
       context: context,
@@ -651,7 +639,13 @@ class _RaportIscirFormScreenState extends State<RaportIscirFormScreen> with Tick
                 valueColor: AlwaysStoppedAnimation<Color>(Colors.green),
               ),
               const SizedBox(height: 16),
-              // Text('Preparing ${_getPdfDisplayName(selectedPdfType)} PDF...'),
+              const Text(
+                'Se generează Raport ISCIR...',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
             ],
           ),
         ),
@@ -670,24 +664,12 @@ class _RaportIscirFormScreenState extends State<RaportIscirFormScreen> with Tick
               form: widget.form,
               client: widget.client,
               formData: completeFormData,
-              selectedPdfType: selectedPdfType,
+              selectedPdfType: 'raport_iscir', // Always raport_iscir now
             ),
           ),
         );
       }
     });
-  }
-
-  // Helper method to get display name for PDF type
-  String _getPdfDisplayName(String pdfType) {
-    switch (pdfType) {
-      case 'raport_iscir':
-        return 'Raport ISCIR';
-      case 'anexa4':
-        return 'Anexa 4';
-      default:
-        return 'PDF';
-    }
   }
 
   Map<String, dynamic> _gatherCompleteFormData() {
@@ -1489,7 +1471,7 @@ class _RaportIscirFormScreenState extends State<RaportIscirFormScreen> with Tick
   Future<String> _generateNextReportNumber() async {
     try {
       // Get total count of ALL forms ever created
-      final totalFormsCount = await DatabaseService.instance
+      final totalFormsCount = await FirestoreService.instance
           .getTotalFormsCount();
 
       // Generate report number: next number in sequence
