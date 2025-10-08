@@ -12,7 +12,6 @@ class FormEditWrapper extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Parse the local form ID
     final localFormId = int.tryParse(formId);
 
     if (localFormId == null) {
@@ -35,7 +34,7 @@ class FormEditWrapper extends StatelessWidget {
     }
 
     return FutureBuilder<ISCIRForm?>(
-      future: DatabaseService.instance.getForm(localFormId), // ← Load from LOCAL database!
+      future: DatabaseService.instance.getForm(localFormId),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Scaffold(
@@ -71,7 +70,6 @@ class FormEditWrapper extends StatelessWidget {
 
         final form = snapshot.data!;
 
-        // Parse the client ID from the form
         final localClientId = int.tryParse(form.clientId);
 
         if (localClientId == null) {
@@ -94,7 +92,7 @@ class FormEditWrapper extends StatelessWidget {
         }
 
         return FutureBuilder<Client?>(
-          future: DatabaseService.instance.getClient(localClientId), // ← Load client from LOCAL database!
+          future: DatabaseService.instance.getClient(localClientId),
           builder: (context, clientSnapshot) {
             if (clientSnapshot.connectionState == ConnectionState.waiting) {
               return const Scaffold(

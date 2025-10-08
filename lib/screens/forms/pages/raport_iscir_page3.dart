@@ -1,10 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:iscir_forms_app/screens/forms/widgets/triple_radio_tile_with_textfield.dart';
 
 import '../../../models/client.dart';
 import '../../../models/form.dart';
-import '../widgets/triple_radio_tile.dart';
 
 class RaportIscirPage3 extends StatefulWidget {
   final Client client;
@@ -40,7 +38,6 @@ class _RaportIscirPage3State extends State<RaportIscirPage3> with TickerProvider
       vsync: this,
     );
 
-    // Create animations for each section
     _sectionAnimations = List.generate(3, (index) =>
         AnimationController(
           duration: Duration(milliseconds: 800 + (index * 200)),
@@ -48,7 +45,6 @@ class _RaportIscirPage3State extends State<RaportIscirPage3> with TickerProvider
         )
     );
 
-    // Start animations
     _animationController.forward();
     for (int i = 0; i < _sectionAnimations.length; i++) {
       Future.delayed(Duration(milliseconds: i * 200), () {
@@ -84,45 +80,6 @@ class _RaportIscirPage3State extends State<RaportIscirPage3> with TickerProvider
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // // Page title
-            // Container(
-            //   padding: const EdgeInsets.all(20),
-            //   decoration: BoxDecoration(
-            //     gradient: LinearGradient(
-            //       colors: [
-            //         Colors.green.withOpacity(0.1),
-            //         Colors.green.withOpacity(0.05),
-            //       ],
-            //     ),
-            //     borderRadius: BorderRadius.circular(16),
-            //     border: Border.all(color: Colors.green.withOpacity(0.2)),
-            //   ),
-            //   child: Row(
-            //     children: [
-            //       Container(
-            //         padding: const EdgeInsets.all(10),
-            //         decoration: BoxDecoration(
-            //           gradient: LinearGradient(
-            //             colors: [Colors.green, Colors.green.shade600],
-            //           ),
-            //           borderRadius: BorderRadius.circular(10),
-            //         ),
-            //         child: const Icon(Icons.build, color: Colors.white, size: 20),
-            //       ),
-            //       const SizedBox(width: 12),
-            //       const Text(
-            //         '5. VERIFICĂRI FUNCȚIONALE',
-            //         style: TextStyle(
-            //           fontSize: 20,
-            //           fontWeight: FontWeight.bold,
-            //           color: Colors.green,
-            //         ),
-            //       ),
-            //     ],
-            //   ),
-            // ),
-            // const SizedBox(height: 24),
-
             _buildAnimatedSection(
               index: 0,
               child: _buildColdVerificationsSection(),
@@ -137,7 +94,7 @@ class _RaportIscirPage3State extends State<RaportIscirPage3> with TickerProvider
               index: 2,
               child: _buildHotVerificationsSection(),
             ),
-            const SizedBox(height: 100), // Space for floating buttons
+            const SizedBox(height: 100),
           ],
         ),
       ),
@@ -175,10 +132,10 @@ class _RaportIscirPage3State extends State<RaportIscirPage3> with TickerProvider
           ),
 
           _buildMeasurementField(
-            title: '- circuitul combustibil (presiune statică în bar)',
+            title: '- circuitul combustibil (presiune statică în mbar)',
             fieldKey: 'circuit_combustibil',
             valueKey: 'circuit_combustibil_valoare',
-            unit: 'bar',
+            unit: 'mbar',
             hint: 'Introduceți valoarea măsurată',
           ),
 
@@ -240,7 +197,6 @@ class _RaportIscirPage3State extends State<RaportIscirPage3> with TickerProvider
       iconColor: Colors.red,
       child: Column(
         children: [
-        // Tip Tiraj selection
         _buildModernRadioGroup(
         title: 'Tip Tiraj',
         fieldKey: 'tip_tiraj',
@@ -316,7 +272,6 @@ class _RaportIscirPage3State extends State<RaportIscirPage3> with TickerProvider
 
       const SizedBox(height: 20),
 
-      // Parameters subsection
       Container(
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
@@ -431,7 +386,7 @@ class _RaportIscirPage3State extends State<RaportIscirPage3> with TickerProvider
 
           Row(
             children: [
-              // Value input field
+              /// Value input field
               Expanded(
                 flex: 2,
                 child: Container(
@@ -493,12 +448,12 @@ class _RaportIscirPage3State extends State<RaportIscirPage3> with TickerProvider
 
               const SizedBox(width: 12),
 
-              // Radio buttons
+              /// Radio buttons
               Expanded(
                 flex: 3,
                 child: Row(
                   children: [
-                    // DA option
+                    /// DA option
                     Expanded(
                       child: _buildRadioOption(
                         label: 'DA',
@@ -515,7 +470,7 @@ class _RaportIscirPage3State extends State<RaportIscirPage3> with TickerProvider
                     ),
                     const SizedBox(width: 4),
 
-                    // NU option
+                    /// NU option
                     Expanded(
                       child: _buildRadioOption(
                         label: 'NU',
@@ -532,7 +487,7 @@ class _RaportIscirPage3State extends State<RaportIscirPage3> with TickerProvider
                     ),
                     const SizedBox(width: 4),
 
-                    // N/A option
+                    /// N/A option
                     Expanded(
                       child: _buildRadioOption(
                         label: 'N/A',
@@ -664,7 +619,7 @@ class _RaportIscirPage3State extends State<RaportIscirPage3> with TickerProvider
 
           Row(
             children: [
-              // DA option
+              /// DA option
               Expanded(
                 child: _buildRadioOption(
                   label: 'DA',
@@ -676,7 +631,7 @@ class _RaportIscirPage3State extends State<RaportIscirPage3> with TickerProvider
               ),
               const SizedBox(width: 8),
 
-              // NU option
+              /// NU option
               Expanded(
                 child: _buildRadioOption(
                   label: 'NU',
@@ -688,7 +643,7 @@ class _RaportIscirPage3State extends State<RaportIscirPage3> with TickerProvider
               ),
               const SizedBox(width: 8),
 
-              // N/A option
+              /// N/A option
               Expanded(
                 child: _buildRadioOption(
                   label: 'N/A',

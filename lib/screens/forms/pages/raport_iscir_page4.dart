@@ -3,7 +3,6 @@ import 'package:flutter/services.dart';
 
 import '../../../models/client.dart';
 import '../../../models/form.dart';
-import '../widgets/triple_radio_tile_with_textfield.dart';
 
 class RaportIscirPage4 extends StatefulWidget {
   final Client client;
@@ -217,7 +216,7 @@ class _RaportIscirPage4State extends State<RaportIscirPage4> with TickerProvider
           const SizedBox(height: 12),
           Row(
             children: [
-              // Text field on the left
+              /// Text field on the left
               Expanded(
                 flex: 2,
                 child: TextField(
@@ -265,8 +264,10 @@ class _RaportIscirPage4State extends State<RaportIscirPage4> with TickerProvider
                   ),
                   ),
               ),
+
               const SizedBox(width: 16),
-              // Radio buttons on the right
+
+              /// Radio buttons on the right
               Expanded(
                 flex: 3,
                 child: Row(

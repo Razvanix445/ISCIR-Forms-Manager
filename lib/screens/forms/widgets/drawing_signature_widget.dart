@@ -75,7 +75,7 @@ class _DrawingSignatureWidgetState extends State<DrawingSignatureWidget> {
                     },
                     onPointerUp: (PointerUpEvent event) {
                       setState(() {
-                        _points.add(null); // Mark end of stroke
+                        _points.add(null);
                       });
                     },
                     child: CustomPaint(
@@ -144,7 +144,6 @@ class _DrawingSignatureWidgetState extends State<DrawingSignatureWidget> {
     }
 
     try {
-      // Show loading dialog
       showDialog(
         context: context,
         barrierDismissible: false,
@@ -165,13 +164,11 @@ class _DrawingSignatureWidgetState extends State<DrawingSignatureWidget> {
         ),
       );
 
-      // Convert signature to image
       RenderRepaintBoundary boundary = _signatureKey.currentContext!.findRenderObject() as RenderRepaintBoundary;
       ui.Image image = await boundary.toImage(pixelRatio: 2.0);
       ByteData? byteData = await image.toByteData(format: ui.ImageByteFormat.png);
       Uint8List? signature = byteData?.buffer.asUint8List();
 
-      // Close loading dialog
       if (mounted) Navigator.of(context).pop();
 
       if (signature != null && mounted) {
@@ -179,7 +176,6 @@ class _DrawingSignatureWidgetState extends State<DrawingSignatureWidget> {
         Navigator.of(context).pop(signature);
       }
     } catch (e) {
-      // Close loading dialog if still open
       if (mounted) Navigator.of(context).pop();
 
       if (mounted) {
@@ -217,7 +213,6 @@ class SignaturePainter extends CustomPainter {
   bool shouldRepaint(CustomPainter oldDelegate) => true;
 }
 
-// Updated SignatureField component
 class DrawingSignatureField extends StatefulWidget {
   final String label;
   final String signatureKey;

@@ -86,7 +86,6 @@ class _AddEditClientScreenState extends State<AddEditClientScreen> with TickerPr
       body: GradientBackground(
         child: Column(
           children: [
-            // Modern header
             ModernHeader(
               title: isEditing ? 'Editează Client' : 'Adaugă Client Nou',
               subtitle: isEditing
@@ -94,7 +93,6 @@ class _AddEditClientScreenState extends State<AddEditClientScreen> with TickerPr
                   : 'Creează un nou profil al clientului',
             ),
 
-            // Form content
             Expanded(
               child: FadeTransition(
                 opacity: _fadeAnimation,

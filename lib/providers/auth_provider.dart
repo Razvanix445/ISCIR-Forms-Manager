@@ -11,18 +11,16 @@ class MyAuthProvider with ChangeNotifier {
   bool _isLoading = false;
   String? _errorMessage;
 
-  // Getters to access the current state
   User? get user => _user;
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
   bool get isAuthenticated => _user != null;
 
   MyAuthProvider() {
-    // Listen to authentication state changes
-    // Whenever someone logs in or out, this updates automatically
+
     _authService.authStateChanges.listen((User? user) {
       _user = user;
-      notifyListeners(); // Tell all widgets listening to this provider that something changed
+      notifyListeners();
     });
   }
 
@@ -130,7 +128,7 @@ class MyAuthProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  /// Helper method to set loading state
+  /// Set loading state
   void _setLoading(bool value) {
     _isLoading = value;
     notifyListeners();

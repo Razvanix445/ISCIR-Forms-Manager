@@ -30,8 +30,6 @@ class _PdfExportScreenState extends State<PdfExportScreen> with TickerProviderSt
 
   late AnimationController _animationController;
   late AnimationController _fabAnimationController;
-  late Animation<double> _fadeAnimation;
-  late Animation<Offset> _slideAnimation;
   late Animation<double> _fabAnimation;
 
   @override
@@ -51,15 +49,6 @@ class _PdfExportScreenState extends State<PdfExportScreen> with TickerProviderSt
       duration: const Duration(milliseconds: 800),
       vsync: this,
     );
-
-    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _animationController, curve: Curves.easeInOut),
-    );
-
-    _slideAnimation = Tween<Offset>(
-      begin: const Offset(0, 0.3),
-      end: Offset.zero,
-    ).animate(CurvedAnimation(parent: _animationController, curve: Curves.easeOutCubic));
 
     _fabAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(parent: _fabAnimationController, curve: Curves.elasticOut),
@@ -268,7 +257,6 @@ class _PdfExportScreenState extends State<PdfExportScreen> with TickerProviderSt
       );
     }
 
-    // Start FAB animations when PDF is ready
     if (!_fabAnimationController.isCompleted) {
       _fabAnimationController.forward();
     }
@@ -276,8 +264,8 @@ class _PdfExportScreenState extends State<PdfExportScreen> with TickerProviderSt
     return Container(
       color: Colors.white,
       child: InteractiveViewer(
-        panEnabled: true, // Allow dragging
-        scaleEnabled: true, // Allow pinch-to-zoom
+        panEnabled: true,
+        scaleEnabled: true,
         minScale: 0.8,
         maxScale: 4.0,
         child: PdfPreview(
@@ -342,17 +330,8 @@ class _PdfExportScreenState extends State<PdfExportScreen> with TickerProviderSt
     );
   }
 
-  // Helper methods remain the same
   String _getPdfDisplayName(String pdfType) {
     return 'Raport ISCIR';
-  }
-
-  String _getPdfDescription(String pdfType) {
-    return 'Raport de verificări și probe';
-  }
-
-  IconData _getPdfIcon(String pdfType) {
-    return Icons.assignment;
   }
 
   Color _getPdfColor(String pdfType) {

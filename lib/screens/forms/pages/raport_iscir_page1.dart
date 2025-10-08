@@ -38,7 +38,6 @@ class _RaportIscirPage1State extends State<RaportIscirPage1> with TickerProvider
       vsync: this,
     );
 
-    // Create animations for each section
     _sectionAnimations = List.generate(4, (index) =>
         AnimationController(
           duration: Duration(milliseconds: 800 + (index * 200)),
@@ -46,7 +45,6 @@ class _RaportIscirPage1State extends State<RaportIscirPage1> with TickerProvider
         )
     );
 
-    // Start animations
     _animationController.forward();
     for (int i = 0; i < _sectionAnimations.length; i++) {
       Future.delayed(Duration(milliseconds: i * 150), () {
@@ -82,11 +80,6 @@ class _RaportIscirPage1State extends State<RaportIscirPage1> with TickerProvider
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // _buildAnimatedSection(
-            //   index: 0,
-            //   child: _buildHeaderSection(),
-            // ),
-            // const SizedBox(height: 24),
             _buildAnimatedSection(
               index: 2,
               child: _buildOperationSection(),
@@ -96,7 +89,7 @@ class _RaportIscirPage1State extends State<RaportIscirPage1> with TickerProvider
               index: 3,
               child: _buildEquipmentDataSection(),
             ),
-            const SizedBox(height: 100), // Space for floating buttons
+            const SizedBox(height: 100),
           ],
         ),
       ),
@@ -125,7 +118,6 @@ class _RaportIscirPage1State extends State<RaportIscirPage1> with TickerProvider
       iconColor: Colors.orange,
       child: Column(
         children: [
-          // Main checkbox for "Admiterea funcționării"
           _buildModernCheckbox(
             title: 'Admiterea funcționării',
             value: widget.checkboxes['operatia_admitere'] ?? false,
@@ -141,7 +133,7 @@ class _RaportIscirPage1State extends State<RaportIscirPage1> with TickerProvider
             },
           ),
 
-          // CONDITIONAL RADIO BUTTONS
+          /// CONDITIONAL RADIO BUTTONS
           if (widget.checkboxes['operatia_admitere'] == true) ...[
             const SizedBox(height: 16),
             Container(
@@ -199,7 +191,7 @@ class _RaportIscirPage1State extends State<RaportIscirPage1> with TickerProvider
 
           const SizedBox(height: 16),
 
-          // Other checkboxes (independent)
+          /// Other checkboxes
           _buildModernCheckbox(
             title: 'Verificare tehnică periodică',
             value: widget.checkboxes['operatia_vtp'] ?? false,
@@ -497,7 +489,6 @@ class _RaportIscirPage1State extends State<RaportIscirPage1> with TickerProvider
     bool showOtherOption = false,
   }) {
     final dropdownValue = widget.radioSelections[key] ?? '';
-    final textValue = widget.controllers[key]?.text ?? '';
     final isOtherSelected = showOtherOption && dropdownValue == 'Altul';
 
     String? displayValue;
@@ -589,7 +580,6 @@ class _RaportIscirPage1State extends State<RaportIscirPage1> with TickerProvider
           ),
         ),
 
-        // Text field for "Altul" option
         if (isOtherSelected) ...[
           const SizedBox(height: 12),
           Container(
