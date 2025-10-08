@@ -13,7 +13,6 @@ import '../../main.dart';
 import '../../models/client.dart';
 import '../../models/form.dart';
 import '../../providers/form_provider.dart';
-import '../../services/database_service.dart';
 import '../../services/firestore_service.dart';
 import '../pdf/pdf_export_screen.dart';
 
@@ -37,41 +36,39 @@ class _RaportIscirFormScreenState extends State<RaportIscirFormScreen> with Tick
   final PageController _pageController = PageController();
   final int _totalPages = 5;
 
-  // Animation controllers
   late AnimationController _headerAnimationController;
   late AnimationController _buttonAnimationController;
   late Animation<double> _headerFadeAnimation;
   late Animation<Offset> _buttonSlideAnimation;
 
-  // TEXT CONTROLLERS for each page
+  /// TEXT CONTROLLERS for each page
   final Map<String, TextEditingController> _page1Controllers = {};
   final Map<String, TextEditingController> _page2Controllers = {};
   final Map<String, TextEditingController> _page3Controllers = {};
   final Map<String, TextEditingController> _page4Controllers = {};
   final Map<String, TextEditingController> _page5Controllers = {};
 
-  // CHECKBOXES for each page
+  /// CHECKBOXES for each page
   final Map<String, bool> _page1Checkboxes = {};
   final Map<String, bool> _page2Checkboxes = {};
   final Map<String, bool> _page3Checkboxes = {};
   final Map<String, bool> _page4Checkboxes = {};
   final Map<String, bool> _page5Checkboxes = {};
 
-  // RADIO BUTTONS for each page
+  /// RADIO BUTTONS for each page
   final Map<String, String> _page1RadioSelections = {};
   final Map<String, String> _page2RadioSelections = {};
   final Map<String, String> _page3RadioSelections = {};
   final Map<String, String> _page4RadioSelections = {};
   final Map<String, String> _page5RadioSelections = {};
 
-  // SIGNATURES for each page (stored as Uint8List - image bytes)
+  /// SIGNATURES for each page (stored as Uint8List - image bytes)
   final Map<String, Uint8List?> _page5Signatures = {};
 
   @override
   void initState() {
     super.initState();
 
-    // Initialize animations
     _headerAnimationController = AnimationController(
       duration: const Duration(milliseconds: 1000),
       vsync: this,
@@ -115,12 +112,15 @@ class _RaportIscirFormScreenState extends State<RaportIscirFormScreen> with Tick
 
   void _initializePage1Data() {
     final page1Fields = [
-      'producator', 'tip', 'model', 'serie_an_fabricatie',
+      'producator',
+      // 'tip',
+      'model', 'serie_an_fabricatie',
       'putere', 'tip_combustibil'
     ];
     for (String field in page1Fields) {
       _page1Controllers[field] = TextEditingController();
     }
+    _page1Controllers['tip'] = TextEditingController(text: 'C12');
 
     _page1Checkboxes.addAll({
       'operatia_admitere': false,
@@ -180,9 +180,9 @@ class _RaportIscirFormScreenState extends State<RaportIscirFormScreen> with Tick
 
     final page3Fields = [
       'verificare_etanseitate_valoare',
-      'circuit_combustibil_valoare',
+      // 'circuit_combustibil_valoare',
       'circuit_apa_valoare',
-      'verificare_instalatie_valoare',
+      // 'verificare_instalatie_valoare',
       'verificare_legare_valoare',
 
       'tiraj_valoare',
@@ -200,6 +200,8 @@ class _RaportIscirFormScreenState extends State<RaportIscirFormScreen> with Tick
     for (String field in page3Fields) {
       _page3Controllers[field] = TextEditingController();
     }
+    _page3Controllers['circuit_combustibil_valoare'] = TextEditingController(text: '25');
+    _page3Controllers['verificare_instalatie_valoare'] = TextEditingController(text: '230');
   }
 
   void _initializePage4Data() {
@@ -264,12 +266,12 @@ class _RaportIscirFormScreenState extends State<RaportIscirFormScreen> with Tick
       body: GradientBackground(
         child: Column(
           children: [
-            // Modern header with page info
+            /// Modern header with page info
             ModernHeader(
               title: '${widget.form.formType.code} - ${_currentPageTitle}',
               subtitle: _currentPageSubtitle,
               actions: [
-                // Page indicator
+                /// Page indicator
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(
@@ -288,13 +290,13 @@ class _RaportIscirFormScreenState extends State<RaportIscirFormScreen> with Tick
               ],
             ),
 
-            // Progress indicator
+            /// Progress indicator
             Container(
               margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
               child: _buildProgressIndicator(),
             ),
 
-            // Form content
+            /// Form content
             Expanded(
               child: PageView(
                 controller: _pageController,
@@ -302,7 +304,6 @@ class _RaportIscirFormScreenState extends State<RaportIscirFormScreen> with Tick
                   setState(() {
                     _currentPage = page;
                   });
-                  // Trigger header animation for page change
                   _headerAnimationController.reset();
                   _headerAnimationController.forward();
                 },
@@ -379,7 +380,7 @@ class _RaportIscirFormScreenState extends State<RaportIscirFormScreen> with Tick
       ),
       child: Column(
         children: [
-          // Progress bar
+          /// Progress bar
           Row(
             children: List.generate(_totalPages, (index) {
               final isCompleted = index < _currentPage;
@@ -414,67 +415,13 @@ class _RaportIscirFormScreenState extends State<RaportIscirFormScreen> with Tick
     );
   }
 
-  Widget _buildProgressStep(int index, String title, IconData icon) {
-    final isCompleted = index < _currentPage;
-    final isCurrent = index == _currentPage;
-    final isActive = isCompleted || isCurrent;
-
-    return Column(
-      children: [
-        Container(
-          width: 40,
-          height: 40,
-          decoration: BoxDecoration(
-            gradient: isActive
-                ? LinearGradient(
-              colors: [
-                Theme.of(context).colorScheme.primary,
-                Theme.of(context).colorScheme.secondary,
-              ],
-            )
-                : null,
-            color: isActive ? null : Colors.grey.shade300,
-            borderRadius: BorderRadius.circular(20),
-            border: isCurrent
-                ? Border.all(color: Colors.white, width: 3)
-                : null,
-            boxShadow: isActive
-                ? [
-              BoxShadow(
-                color: Theme.of(context).colorScheme.primary.withOpacity(0.3),
-                blurRadius: 8,
-                offset: const Offset(0, 4),
-              ),
-            ]
-                : null,
-          ),
-          child: Icon(
-            isCompleted ? Icons.check : icon,
-            color: isActive ? Colors.white : Colors.grey.shade600,
-            size: 20,
-          ),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          title,
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            fontSize: 10,
-            fontWeight: isActive ? FontWeight.w600 : FontWeight.w400,
-            color: isActive ? Theme.of(context).colorScheme.primary : Colors.grey.shade600,
-          ),
-        ),
-      ],
-    );
-  }
-
   Widget _buildNavigationButtons() {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 20),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          // Back button
+          /// Back button
           if (_currentPage > 0)
             Container(
               decoration: BoxDecoration(
@@ -504,7 +451,7 @@ class _RaportIscirFormScreenState extends State<RaportIscirFormScreen> with Tick
           else
             const SizedBox(width: 56),
 
-          // Next/PDF button
+          /// Next/PDF button
           if (_currentPage < _totalPages - 1)
             Container(
               decoration: BoxDecoration(
@@ -614,7 +561,6 @@ class _RaportIscirFormScreenState extends State<RaportIscirFormScreen> with Tick
 
     _saveCurrentPageData();
 
-    // Show loading dialog
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -654,7 +600,7 @@ class _RaportIscirFormScreenState extends State<RaportIscirFormScreen> with Tick
 
     Future.delayed(const Duration(milliseconds: 500), () {
       if (mounted) {
-        Navigator.pop(context); // Close loading dialog
+        Navigator.pop(context);
 
         final Map<String, dynamic> completeFormData = _gatherCompleteFormData();
 
@@ -664,7 +610,7 @@ class _RaportIscirFormScreenState extends State<RaportIscirFormScreen> with Tick
               form: widget.form,
               client: widget.client,
               formData: completeFormData,
-              selectedPdfType: 'raport_iscir', // Always raport_iscir now
+              selectedPdfType: 'raport_iscir',
             ),
           ),
         );
@@ -675,20 +621,17 @@ class _RaportIscirFormScreenState extends State<RaportIscirFormScreen> with Tick
   Map<String, dynamic> _gatherCompleteFormData() {
     final Map<String, dynamic> completeData = {};
 
-    // Start with existing form data from database
     completeData.addAll(widget.form.formData);
 
     // === PAGE 1 DATA ===
     _page1RadioSelections.forEach((key, value) {
       if (value.isNotEmpty) {
         if (value == 'Altul') {
-          // If "Altul" is selected, use the text field value instead
           final textValue = _page1Controllers[key]?.text.trim() ?? '';
           if (textValue.isNotEmpty) {
             completeData[key] = textValue;
           }
         } else {
-          // Use the dropdown selection
           completeData[key] = value;
         }
       }
@@ -744,7 +687,6 @@ class _RaportIscirFormScreenState extends State<RaportIscirFormScreen> with Tick
       }
     });
 
-    // Add Page 5 signatures if they exist
     if (_page5Signatures.isNotEmpty) {
       final Map<String, String> signaturesBase64 = {};
       _page5Signatures.forEach((key, value) {
@@ -764,7 +706,6 @@ class _RaportIscirFormScreenState extends State<RaportIscirFormScreen> with Tick
     completeData['client_installation_location'] = widget.client.installationLocation;
     completeData['client_holder'] = widget.client.holder;
 
-    // Also add the alternative field names from your coordinate mapping
     completeData['nume_client'] = widget.client.firstName;
     completeData['prenume_client'] = widget.client.lastName;
     completeData['localitate_client'] = widget.client.address;
@@ -811,13 +752,11 @@ class _RaportIscirFormScreenState extends State<RaportIscirFormScreen> with Tick
       _page1RadioSelections.forEach((key, value) {
         if (value.isNotEmpty) {
           if (value == 'Altul') {
-            // If "Altul" is selected, use the text field value instead
             final textValue = _page1Controllers[key]?.text.trim() ?? '';
             if (textValue.isNotEmpty) {
               pageData[key] = textValue;
             }
           } else {
-            // Use the dropdown selection
             pageData[key] = value;
           }
         }
@@ -1138,20 +1077,17 @@ class _RaportIscirFormScreenState extends State<RaportIscirFormScreen> with Tick
 
       print('Loading existing data: $formData');
 
-      // Load data into Page 1 controllers
       _page1Controllers.forEach((key, controller) {
         if (formData.containsKey(key)) {
           controller.text = formData[key]?.toString() ?? '';
         }
       });
 
-      // Load data into Page 1 radio selections
       _page1RadioSelections.forEach((key, value) {
         if (formData.containsKey(key)) {
           final savedValue = formData[key]?.toString() ?? '';
 
-          // If this is a dropdown field with showOtherOption
-          if (key == 'producator') { // Add other dropdown fields here as needed
+          if (key == 'producator') {
             final dropdownOptions = [
               'Ariston', 'Baxi', 'Beretta', 'Bosch', 'Buderus',
               'Ferroli', 'Immergas', 'Junkers', 'Saunier Duval',
@@ -1159,29 +1095,24 @@ class _RaportIscirFormScreenState extends State<RaportIscirFormScreen> with Tick
             ];
 
             if (dropdownOptions.contains(savedValue)) {
-              // It's a dropdown option
               _page1RadioSelections[key] = savedValue;
               _page1Controllers[key]?.clear();
             } else if (savedValue.isNotEmpty) {
-              // It's a custom value
               _page1RadioSelections[key] = 'Altul';
               _page1Controllers[key]?.text = savedValue;
             }
           } else {
-            // Regular radio button
             _page1RadioSelections[key] = savedValue;
           }
         }
       });
 
-      // Load data into Page 1 checkboxes
       _page1Checkboxes.forEach((key, value) {
         if (formData.containsKey(key)) {
           _page1Checkboxes[key] = formData[key] == true || formData[key] == 'true';
         }
       });
 
-      // Trigger UI rebuild to show loaded data
       setState(() {});
 
       print('Data loaded successfully');
@@ -1202,14 +1133,12 @@ class _RaportIscirFormScreenState extends State<RaportIscirFormScreen> with Tick
 
       print('Loading existing data: $formData');
 
-      // Load data into Page 2 controllers
       _page2Controllers.forEach((key, controller) {
         if (formData.containsKey(key)) {
           controller.text = formData[key]?.toString() ?? '';
         }
       });
 
-      // Load data into Page 2 radio selections
       _page2RadioSelections.forEach((key, value) {
         if (formData.containsKey(key)) {
           final savedValue = formData[key]?.toString() ?? '';
@@ -1217,14 +1146,12 @@ class _RaportIscirFormScreenState extends State<RaportIscirFormScreen> with Tick
         }
       });
 
-      // Load data into Page 2 checkboxes
       _page2Checkboxes.forEach((key, value) {
         if (formData.containsKey(key)) {
           _page2Checkboxes[key] = formData[key] == true || formData[key] == 'true';
         }
       });
 
-      // Trigger UI rebuild to show loaded data
       setState(() {});
 
       print('Data loaded successfully');
@@ -1245,14 +1172,12 @@ class _RaportIscirFormScreenState extends State<RaportIscirFormScreen> with Tick
 
       print('Loading existing data: $formData');
 
-      // Load data into Page 3 controllers
       _page3Controllers.forEach((key, controller) {
         if (formData.containsKey(key)) {
           controller.text = formData[key]?.toString() ?? '';
         }
       });
 
-      // Load data into Page 3 radio selections
       _page3RadioSelections.forEach((key, value) {
         if (formData.containsKey(key)) {
           final savedValue = formData[key]?.toString() ?? '';
@@ -1260,7 +1185,6 @@ class _RaportIscirFormScreenState extends State<RaportIscirFormScreen> with Tick
         }
       });
 
-      // Trigger UI rebuild to show loaded data
       setState(() {});
 
       print('Data loaded successfully');
@@ -1281,14 +1205,12 @@ class _RaportIscirFormScreenState extends State<RaportIscirFormScreen> with Tick
 
       print('Loading existing data: $formData');
 
-      // Load data into Page 4 controllers
       _page4Controllers.forEach((key, controller) {
         if (formData.containsKey(key)) {
           controller.text = formData[key]?.toString() ?? '';
         }
       });
 
-      // Load data into Page 4 radio selections
       _page4RadioSelections.forEach((key, value) {
         if (formData.containsKey(key)) {
           final savedValue = formData[key]?.toString() ?? '';
@@ -1296,7 +1218,6 @@ class _RaportIscirFormScreenState extends State<RaportIscirFormScreen> with Tick
         }
       });
 
-      // Trigger UI rebuild to show loaded data
       setState(() {});
 
       print('Data loaded successfully');
@@ -1317,7 +1238,6 @@ class _RaportIscirFormScreenState extends State<RaportIscirFormScreen> with Tick
 
       print('Loading existing data: $formData');
 
-      // Load data into Page 5 radio selections
       _page5RadioSelections.forEach((key, value) {
         if (formData.containsKey(key)) {
           final savedValue = formData[key]?.toString() ?? '';
@@ -1325,14 +1245,12 @@ class _RaportIscirFormScreenState extends State<RaportIscirFormScreen> with Tick
         }
       });
 
-      // Load signatures
       _page5Signatures.clear();
       if (formData.containsKey('page5_signatures') && formData['page5_signatures'] != null) {
         final signaturesData = formData['page5_signatures'];
         print('Loading Page 5 signatures data type: ${signaturesData.runtimeType}');
 
         if (signaturesData is Map<String, dynamic>) {
-          // Normal case - signatures stored as Map
           signaturesData.forEach((key, value) {
             if (value != null && value is String && value.isNotEmpty) {
               try {
@@ -1345,7 +1263,6 @@ class _RaportIscirFormScreenState extends State<RaportIscirFormScreen> with Tick
             }
           });
         } else if (signaturesData is String) {
-          // Handle string format if needed
           try {
             final Map<String, dynamic> parsedSignatures = json.decode(signaturesData);
             parsedSignatures.forEach((key, value) {
@@ -1368,7 +1285,6 @@ class _RaportIscirFormScreenState extends State<RaportIscirFormScreen> with Tick
       print('Final Page 5 signatures map: ${_page5Signatures.keys.toList()}');
       print('Total Page 5 signatures loaded: ${_page5Signatures.length}');
 
-      // Trigger UI rebuild to show loaded data
       setState(() {});
 
       print('Data loaded successfully');
@@ -1389,26 +1305,23 @@ class _RaportIscirFormScreenState extends State<RaportIscirFormScreen> with Tick
       }
     });
 
-    // Auto-save the signatures
     _autoSavePage5();
   }
 
   Future<void> _addAutoGeneratedFields() async {
     try {
-      // Check if auto fields already exist
       if (widget.form.formData.containsKey('report_no') &&
           widget.form.formData.containsKey('today_date')) {
         print('Auto fields already exist');
       } else {
         final reportNumber = await _generateNextReportNumber();
 
-        // Format date as DD.MM.YYYY
         final now = DateTime.now();
         final todayDate = '${now.day.toString().padLeft(2, '0')}.${now.month.toString().padLeft(2, '0')}.${now.year}';
 
         final autoData = {
           'report_no': reportNumber,
-          'today_date': todayDate, // Will be something like "15.01.2024"
+          'today_date': todayDate,
         };
 
         print('Generating auto fields: $autoData');
@@ -1435,12 +1348,10 @@ class _RaportIscirFormScreenState extends State<RaportIscirFormScreen> with Tick
 
   Future<void> _autoPopulatePage5Fields() async {
     try {
-      // Calculate scadenta_verificare (2 years from report date)
       final reportDate = widget.form.reportDate;
       final scadentaDate = reportDate.add(Duration(days: 365 * 2));
       final scadentaFormatted = '${scadentaDate.day.toString().padLeft(2, '0')}.${scadentaDate.month.toString().padLeft(2, '0')}.${scadentaDate.year}';
 
-      // Auto-populated data
       final autoData = {
         'scadenta_verificare': scadentaFormatted,
         'nume_utilizator': widget.client.name,
@@ -1449,7 +1360,6 @@ class _RaportIscirFormScreenState extends State<RaportIscirFormScreen> with Tick
 
       print('Auto-populating Page 5 fields: $autoData');
 
-      // Save the auto-populated data
       final success = await context.read<FormProvider>().saveFormData(
         widget.form.id!,
         autoData,
@@ -1457,7 +1367,6 @@ class _RaportIscirFormScreenState extends State<RaportIscirFormScreen> with Tick
 
       if (success) {
         print('Page 5 auto-populated fields saved successfully');
-        // Update the form data immediately so it shows in the UI
         widget.form.formData.addAll(autoData);
       } else {
         print('Failed to save Page 5 auto-populated fields');
@@ -1470,17 +1379,14 @@ class _RaportIscirFormScreenState extends State<RaportIscirFormScreen> with Tick
 
   Future<String> _generateNextReportNumber() async {
     try {
-      // Get total count of ALL forms ever created
       final totalFormsCount = await FirestoreService.instance
           .getTotalFormsCount();
 
-      // Generate report number: next number in sequence
       final nextNumber = totalFormsCount + 1;
 
       return '$nextNumber';
     } catch (e) {
       print('Error generating report number: $e');
-      // Fallback: use a simple timestamp-based number
       final now = DateTime.now();
       return now.millisecondsSinceEpoch.toString().substring(8, 11);
     }

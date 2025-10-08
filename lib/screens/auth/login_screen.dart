@@ -153,7 +153,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                     color: Colors.white,
                                   ),
                                 )
-                                    : const Text('Înregistrează-te'),
+                                    : const Text('Autentifică-te'),
                               ),
                             );
                           },

@@ -54,7 +54,6 @@ class _ClientDetailScreenState extends State<ClientDetailScreen> with TickerProv
       body: GradientBackground(
         child: Column(
           children: [
-            // Modern header
             Consumer<ClientProvider>(
               builder: (context, clientProvider, child) {
                 final client = clientProvider.getClientById(widget.clientId);
@@ -80,7 +79,6 @@ class _ClientDetailScreenState extends State<ClientDetailScreen> with TickerProv
               },
             ),
 
-            // Content area
             Expanded(
               child: FadeTransition(
                 opacity: _fadeAnimation,
@@ -217,7 +215,6 @@ class _ClientDetailScreenState extends State<ClientDetailScreen> with TickerProv
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Header with avatar and basic info
                   Row(
                     children: [
                       Container(
@@ -277,7 +274,7 @@ class _ClientDetailScreenState extends State<ClientDetailScreen> with TickerProv
                     children: [
                       Expanded(
                         child:
-                          // Contact Information Section
+                          /// Contact Information Section
                           _buildInfoSection(
                           'Informații de Contact',
                             Icons.contact_phone,
@@ -289,7 +286,7 @@ class _ClientDetailScreenState extends State<ClientDetailScreen> with TickerProv
                         ),
                       Expanded(
                         child:
-                          // Address Information Section
+                          /// Address Information Section
                           _buildInfoSection(
                           'Informații Adresă',
                             Icons.location_on,
@@ -301,7 +298,7 @@ class _ClientDetailScreenState extends State<ClientDetailScreen> with TickerProv
                         ),
                       Expanded(
                         child:
-                          // Installation Information Section
+                          /// Installation Information Section
                           _buildInfoSection(
                           'Informații Instalație',
                             Icons.build,
@@ -674,7 +671,6 @@ class _ClientDetailScreenState extends State<ClientDetailScreen> with TickerProv
 
   Future<void> _createNewForm(Client client) async {
     try {
-      // Show loading indicator
       showDialog(
         context: context,
         barrierDismissible: false,
@@ -809,7 +805,7 @@ class ModernFormListTile extends StatelessWidget {
             padding: const EdgeInsets.all(16),
             child: Row(
               children: [
-                // Form icon with gradient background
+                /// Form icon with gradient background
                 Container(
                   width: 50,
                   height: 50,
@@ -837,7 +833,7 @@ class ModernFormListTile extends StatelessWidget {
                 ),
                 const SizedBox(width: 16),
 
-                // Form information
+                /// Form information
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -881,7 +877,7 @@ class ModernFormListTile extends StatelessWidget {
                   ),
                 ),
 
-                // Status badge and arrow
+                /// Status badge and arrow
                 Column(
                   children: [
                     Container(
@@ -943,7 +939,7 @@ class ModernFormListTile extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Handle bar
+            /// Handle bar
             Container(
               width: 40,
               height: 4,
@@ -954,7 +950,7 @@ class ModernFormListTile extends StatelessWidget {
               ),
             ),
 
-            // Options
+            /// Options
             _buildOptionTile(
               context,
               Icons.edit,
@@ -969,13 +965,6 @@ class ModernFormListTile extends StatelessWidget {
                   () => _generatePdf(context),
               Colors.orange,
             ),
-            // _buildOptionTile(
-            //   context,
-            //   Icons.print,
-            //   'Imprimă PDF',
-            //       () => _printForm(context),
-            //   Colors.purple,
-            // ),
             _buildOptionTile(
               context,
               Icons.delete,
@@ -1082,13 +1071,8 @@ class ModernFormListTile extends StatelessWidget {
         return;
       }
 
-      // FIXED: Use form.formData directly (it's already loaded with the form)
       final completeFormData = Map<String, dynamic>.from(form.formData);
 
-      print('DEBUG: Form data before adding client: ${completeFormData.keys.length} fields');
-      print('DEBUG: Form data keys: ${completeFormData.keys.toList()}');
-
-      // Add client data
       completeFormData.addAll({
         'client_name': client.name,
         'client_address': client.address,
@@ -1128,124 +1112,6 @@ class ModernFormListTile extends StatelessWidget {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('❌ Eroare la generarea PDF: $e'),
-          backgroundColor: Colors.red,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        ),
-      );
-    }
-  }
-
-  Future<void> _printForm(BuildContext context) async {
-    try {
-      // Show loading dialog
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) => Center(
-          child: Container(
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(20),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.purple.withOpacity(0.1),
-                  blurRadius: 20,
-                  offset: const Offset(0, 10),
-                ),
-              ],
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                CircularProgressIndicator(
-                  valueColor: AlwaysStoppedAnimation<Color>(Colors.purple),
-                ),
-                const SizedBox(height: 16),
-                const Text(
-                  'Se pregătește documentul pentru imprimare...',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      );
-
-      // Get the client for this form
-      final client = context.read<ClientProvider>().getClientById(form.clientId);
-      if (client == null) {
-        Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text('❌ Client negăsit!'),
-            backgroundColor: Colors.red,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-          ),
-        );
-        return;
-      }
-
-      // Load the complete form data from database
-      final formData = await FirestoreService.instance.getFormData(form.id!);
-
-      // Add client data to form data for PDF generation
-      final completeFormData = Map<String, dynamic>.from(formData);
-      completeFormData.addAll({
-        'client_name': client.name,
-        'client_address': client.address,
-        'client_street': client.street,
-        'client_phone': client.phone,
-        'client_email': client.email,
-        'client_installation_location': client.installationLocation,
-        'client_holder': client.holder,
-        'nume_client': client.lastName,
-        'prenume_client': client.firstName,
-        'localitate_client': client.address,
-        'adresa_client': client.street,
-        'telefon_client': client.phone,
-        'email_client': client.email,
-        'loc_aparat_client': client.installationLocation,
-        'detinator_client': client.holder,
-      });
-
-      // Generate PDF
-      final pdfService = SimplePdfGenerationService.instance;
-      final pdfBytes = await pdfService.generateOfficialPdf(
-        form: form,
-        client: client,
-        formData: completeFormData,
-        specificPdfType: 'raport_iscir',
-      );
-
-      Navigator.pop(context); // Close loading dialog
-
-      // Print the PDF
-      final fileName = '${client.firstName}_${client.lastName}_Raport_ISCIR_No.${form.reportNumber}';
-      await pdfService.printPdf(pdfBytes, fileName);
-
-      // Show success message
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('✅ Documentul a fost trimis la imprimantă!'),
-          backgroundColor: Colors.green,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        ),
-      );
-
-    } catch (e) {
-      // Close loading dialog if still open
-      if (Navigator.canPop(context)) Navigator.pop(context);
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('❌ Eroare la imprimare: $e'),
           backgroundColor: Colors.red,
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),

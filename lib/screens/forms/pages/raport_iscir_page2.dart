@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../../../models/client.dart';
 import '../../../models/form.dart';
-import '../widgets/triple_radio_tile.dart';
 
 class RaportIscirPage2 extends StatefulWidget {
   final Client client;
@@ -38,7 +37,6 @@ class _RaportIscirPage2State extends State<RaportIscirPage2> with TickerProvider
       vsync: this,
     );
 
-    // Create animations for each section
     _sectionAnimations = List.generate(2, (index) =>
         AnimationController(
           duration: Duration(milliseconds: 800 + (index * 200)),
@@ -46,7 +44,6 @@ class _RaportIscirPage2State extends State<RaportIscirPage2> with TickerProvider
         )
     );
 
-    // Start animations
     _animationController.forward();
     for (int i = 0; i < _sectionAnimations.length; i++) {
       Future.delayed(Duration(milliseconds: i * 200), () {
@@ -228,7 +225,6 @@ class _RaportIscirPage2State extends State<RaportIscirPage2> with TickerProvider
 
           const SizedBox(height: 20),
 
-          // Connection verification subsection
           Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(

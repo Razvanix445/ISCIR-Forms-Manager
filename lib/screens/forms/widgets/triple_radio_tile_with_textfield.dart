@@ -56,7 +56,7 @@ class TripleRadioTileWithTextfield extends StatelessWidget {
                       borderSide: BorderSide(color: Colors.blue, width: 2),
                     ),
                     contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                    isDense: true, // Makes the field more compact
+                    isDense: true,
                   ),
                   onChanged: onTextChanged,
                 ),

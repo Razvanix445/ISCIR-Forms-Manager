@@ -24,7 +24,6 @@ class _ClientCardState extends State<ClientCard>
     with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<double> _scaleAnimation;
-  bool _isPressed = false;
 
   @override
   void initState() {
@@ -88,16 +87,13 @@ class _ClientCardState extends State<ClientCard>
                   padding: const EdgeInsets.all(20),
                   child: Row(
                     children: [
-                      // Client avatar with gradient
                       _buildClientAvatar(),
                       const SizedBox(width: 16),
 
-                      // Client info
                       Expanded(
                         child: _buildClientInfo(),
                       ),
 
-                      // Status and action
                       _buildClientActions(),
                     ],
                   ),
@@ -223,19 +219,16 @@ class _ClientCardState extends State<ClientCard>
     while (true) {
       final index = lowerText.indexOf(query, start);
       if (index == -1) {
-        // Add remaining text
         if (start < text.length) {
           spans.add(TextSpan(text: text.substring(start)));
         }
         break;
       }
 
-      // Add text before match
       if (index > start) {
         spans.add(TextSpan(text: text.substring(start, index)));
       }
 
-      // Add highlighted match
       spans.add(TextSpan(
         text: text.substring(index, index + query.length),
         style: style.copyWith(
@@ -256,7 +249,6 @@ class _ClientCardState extends State<ClientCard>
   Widget _buildClientActions() {
     return Column(
       children: [
-        // More options button
         Container(
           decoration: BoxDecoration(
             color: Colors.grey.shade100,
@@ -303,7 +295,6 @@ class _ClientCardState extends State<ClientCard>
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Handle bar
             Container(
               width: 40,
               height: 4,
@@ -314,7 +305,6 @@ class _ClientCardState extends State<ClientCard>
               ),
             ),
 
-            // Options
             _buildOptionTile(
               Icons.edit,
               'Editează Client',

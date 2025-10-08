@@ -44,7 +44,6 @@ class _RaportIscirPage5State extends State<RaportIscirPage5> with TickerProvider
       vsync: this,
     );
 
-    // Create animations for each section
     _sectionAnimations = List.generate(2, (index) =>
         AnimationController(
           duration: Duration(milliseconds: 800 + (index * 200)),
@@ -52,7 +51,6 @@ class _RaportIscirPage5State extends State<RaportIscirPage5> with TickerProvider
         )
     );
 
-    // Start animations
     _animationController.forward();
     for (int i = 0; i < _sectionAnimations.length; i++) {
       Future.delayed(Duration(milliseconds: i * 200), () {
@@ -97,7 +95,7 @@ class _RaportIscirPage5State extends State<RaportIscirPage5> with TickerProvider
               index: 1,
               child: _buildSignaturesSection(),
             ),
-            const SizedBox(height: 100), // Space for navigation buttons
+            const SizedBox(height: 100),
           ],
         ),
       ),
@@ -160,7 +158,6 @@ class _RaportIscirPage5State extends State<RaportIscirPage5> with TickerProvider
         children: [
           Row(
             children: [
-              // Icon at the beginning
               Container(
                 padding: const EdgeInsets.all(6),
                 decoration: BoxDecoration(

@@ -1,12 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:iscir_forms_app/screens/coordinate_mapping_screen.dart';
 import 'package:iscir_forms_app/screens/forms/form_edit_wrapper.dart';
 import 'package:iscir_forms_app/services/sync_service.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'firebase_options.dart';
 
 import 'providers/client_provider.dart';
@@ -52,7 +50,7 @@ class ISCIRFormsApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => ClientProvider()),
         ChangeNotifierProvider(create: (_) => FormProvider()),
       ],
-      child: const AppWithRouter(), // Use AppWithRouter here
+      child: const AppWithRouter(),
     );
   }
 }
@@ -139,8 +137,6 @@ class _AppWithRouterState extends State<AppWithRouter> {
     const primaryColor = Color(0xFF6366F1);
     const secondaryColor = Color(0xFF8B5CF6);
     const accentColor = Color(0xFF06B6D4);
-    const successColor = Color(0xFF10B981);
-    const warningColor = Color(0xFFF59E0B);
     const errorColor = Color(0xFFEF4444);
 
     return ThemeData(

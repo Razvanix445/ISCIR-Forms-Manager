@@ -16,7 +16,7 @@ class _TrimesterSelectionDialogState extends State<TrimesterSelectionDialog> {
     if (month >= 10) return 4; // Oct-Dec
     if (month >= 7) return 3;  // Jul-Sep
     if (month >= 4) return 2;  // Apr-Jun
-    return 1;                   // Jan-Mar
+    return 1;                  // Jan-Mar
   }
 
   String _getTrimesterLabel(int trimester) {
@@ -86,7 +86,7 @@ class _TrimesterSelectionDialogState extends State<TrimesterSelectionDialog> {
             ),
             const SizedBox(height: 24),
 
-            // Year selection
+            /// Year selection
             const Text(
               'Anul',
               style: TextStyle(
@@ -124,7 +124,7 @@ class _TrimesterSelectionDialogState extends State<TrimesterSelectionDialog> {
 
             const SizedBox(height: 20),
 
-            // Trimester selection
+            /// Trimester selection
             const Text(
               'Trimestrul',
               style: TextStyle(
@@ -209,7 +209,7 @@ class _TrimesterSelectionDialogState extends State<TrimesterSelectionDialog> {
 
             const SizedBox(height: 24),
 
-            // Action buttons
+            /// Action buttons
             Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [

@@ -22,14 +22,14 @@ class DatabaseService {
 
     return await openDatabase(
       path,
-      version: 2, // Increment version for new tables
+      version: 2,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
   }
 
   Future<void> _onCreate(Database db, int version) async {
-    // Clients table
+    /// Clients table
     await db.execute('''
       CREATE TABLE clients (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -47,7 +47,7 @@ class DatabaseService {
       )
     ''');
 
-    // Forms table
+    /// Forms table
     await db.execute('''
       CREATE TABLE forms (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -63,7 +63,7 @@ class DatabaseService {
       )
     ''');
 
-    // Form data table
+    /// Form data table
     await db.execute('''
       CREATE TABLE form_data (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -75,7 +75,7 @@ class DatabaseService {
       )
     ''');
 
-    // Sync queue table (NEW)
+    /// Sync queue table
     await db.execute('''
       CREATE TABLE sync_queue (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -92,12 +92,10 @@ class DatabaseService {
 
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
     if (oldVersion < 2) {
-      // Add firestore_id columns
       await db.execute('ALTER TABLE clients ADD COLUMN firestore_id TEXT UNIQUE');
       await db.execute('ALTER TABLE forms ADD COLUMN firestore_id TEXT UNIQUE');
       await db.execute('ALTER TABLE forms ADD COLUMN client_firestore_id TEXT');
 
-      // Create sync queue table
       await db.execute('''
         CREATE TABLE sync_queue (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -113,7 +111,7 @@ class DatabaseService {
     }
   }
 
-  // CLIENT OPERATIONS
+  /// CLIENT OPERATIONS
 
   Future<int> createClient(Client client, {String? firestoreId}) async {
     final db = await database;
@@ -157,7 +155,7 @@ class DatabaseService {
     return await db.delete('clients', where: 'id = ?', whereArgs: [id]);
   }
 
-  // FORM OPERATIONS
+  /// FORM OPERATIONS
 
   Future<int> createForm(ISCIRForm form, {String? firestoreId}) async {
     final db = await database;
@@ -177,21 +175,16 @@ class DatabaseService {
 
     List<ISCIRForm> forms = [];
     for (var map in formMaps) {
-      // The database returns id as an integer, need to add it to the map
       final formMap = Map<String, dynamic>.from(map);
 
-      // Create basic form from map (id will be converted to String in fromMap)
       final basicForm = ISCIRForm.fromMap(formMap);
 
-      // Parse the form ID to get form data
-      // Since basicForm.id is now a String, we need to parse it back to int
       final formId = int.tryParse(basicForm.id ?? '');
 
       if (formId != null) {
         final formData = await getFormData(formId);
         forms.add(basicForm.copyWith(formData: formData));
       } else {
-        // If we can't parse the ID, add the form without data
         print('WARNING: Could not parse form ID: ${basicForm.id}');
         forms.add(basicForm);
       }
@@ -207,7 +200,6 @@ class DatabaseService {
     final formMap = Map<String, dynamic>.from(result.first);
     final form = ISCIRForm.fromMap(formMap);
 
-    // Get form data using the integer id directly
     final formData = await getFormData(id);
     return form.copyWith(formData: formData);
   }
@@ -231,14 +223,12 @@ class DatabaseService {
     return formData;
   }
 
-  // Get total forms count (for report numbering)
   Future<int> getTotalFormsCount() async {
     final db = await database;
     final result = await db.rawQuery('SELECT COUNT(*) as count FROM forms');
     return Sqflite.firstIntValue(result) ?? 0;
   }
 
-  // Update a form
   Future<int> updateForm(ISCIRForm form) async {
     final db = await database;
     final localId = int.tryParse(form.id!);
@@ -252,7 +242,6 @@ class DatabaseService {
     );
   }
 
-  // Update form's Firestore ID
   Future<void> updateFormFirestoreId(int localId, String firestoreId) async {
     final db = await database;
     await db.update(
@@ -263,18 +252,14 @@ class DatabaseService {
     );
   }
 
-  // Delete a form
   Future<int> deleteForm(int id) async {
     final db = await database;
 
-    // Delete form data first (foreign key relationship)
     await db.delete('form_data', where: 'form_id = ?', whereArgs: [id]);
 
-    // Then delete the form itself
     return await db.delete('forms', where: 'id = ?', whereArgs: [id]);
   }
 
-  // Save a single form field
   Future<void> saveFormField(int formId, String fieldName, dynamic fieldValue) async {
     final db = await database;
 
@@ -289,7 +274,6 @@ class DatabaseService {
     );
   }
 
-  // Get form by Firestore ID
   Future<ISCIRForm?> getFormByFirestoreId(String firestoreId) async {
     final db = await database;
     final result = await db.query(
@@ -308,8 +292,6 @@ class DatabaseService {
   Future<void> saveFormData(int formId, Map<String, dynamic> formData) async {
     final db = await database;
 
-    // Use UPSERT (insert or replace) instead of delete-then-insert
-    // This MERGES new data with existing data instead of replacing everything
     await db.transaction((txn) async {
       for (final entry in formData.entries) {
         String? valueStr;
@@ -319,8 +301,6 @@ class DatabaseService {
           valueStr = entry.value.toString();
         }
 
-        // Insert or replace individual fields
-        // This preserves data from other pages!
         await txn.insert(
           'form_data',
           {
@@ -328,13 +308,13 @@ class DatabaseService {
             'field_name': entry.key,
             'field_value': valueStr,
           },
-          conflictAlgorithm: ConflictAlgorithm.replace, // ← Replace only this field, not all!
+          conflictAlgorithm: ConflictAlgorithm.replace,
         );
       }
     });
   }
 
-  // SYNC QUEUE OPERATIONS
+  /// SYNC QUEUE OPERATIONS
 
   Future<void> addToSyncQueue({
     required String entityType,

@@ -1,14 +1,11 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:flutter/services.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
-import 'package:path_provider/path_provider.dart';
 import 'package:printing/printing.dart';
-import 'package:share_plus/share_plus.dart';
 import '../models/form.dart';
 import '../models/client.dart';
 
@@ -23,29 +20,24 @@ class SimplePdfGenerationService {
     final pdf = pw.Document();
 
     try {
-      // Load the template image
       final ByteData templateData = await rootBundle.load(
           'assets/templates/raport_iscir.png');
       final Uint8List templateBytes = templateData.buffer.asUint8List();
       final pw.MemoryImage templateImage = pw.MemoryImage(templateBytes);
 
-      // Get image dimensions for scaling
       final image = await _decodeImageFromList(templateBytes);
       final imageWidth = image.width.toDouble();
       final imageHeight = image.height.toDouble();
 
-      // A4 page dimensions in PDF points (72 DPI)
       final pdfWidth = PdfPageFormat.a4.width;
       final pdfHeight = PdfPageFormat.a4.height;
 
-      // Calculate scale factors
       final scaleX = pdfWidth / imageWidth;
       final scaleY = pdfHeight / imageHeight;
 
       print(
           'Raport ISCIR PDF - Image: ${imageWidth}x$imageHeight, PDF: ${pdfWidth}x$pdfHeight, Scale: ${scaleX}x$scaleY');
 
-      // Load font for Romanian characters
       final fontData = await rootBundle.load(
           'assets/fonts/NotoSans-Regular.ttf');
       final ttf = pw.Font.ttf(fontData);
@@ -57,10 +49,8 @@ class SimplePdfGenerationService {
           build: (pw.Context context) {
             return pw.Stack(
               children: [
-                // Background template image
                 pw.Image(templateImage, fit: pw.BoxFit.fill),
 
-                // Overlay form data at mapped coordinates
                 ..._buildRaportIscirFieldOverlays(
                     formData, client, ttf, scaleX, scaleY),
               ],
@@ -88,7 +78,7 @@ class SimplePdfGenerationService {
     print('Available field positions: ${fieldPositions.keys.length}');
     print('Form data keys: ${formData.keys.toList()}');
 
-    // === CLIENT INFORMATION FIELDS ===
+    /// === CLIENT INFORMATION FIELDS ===
     _addTextOverlay(
         overlays,
         'nume_client',
@@ -154,7 +144,7 @@ class SimplePdfGenerationService {
         scaleX,
         scaleY);
 
-    // === AUTO-GENERATED FIELDS ===
+    /// === AUTO-GENERATED FIELDS ===
     _addTextOverlay(
         overlays,
         'report_no',
@@ -172,7 +162,7 @@ class SimplePdfGenerationService {
         scaleX,
         scaleY);
 
-    // === PAGE 1 EQUIPMENT FIELDS ===
+    /// === PAGE 1 EQUIPMENT FIELDS ===
     _addTextOverlay(
         overlays,
         'producator',
@@ -222,7 +212,7 @@ class SimplePdfGenerationService {
         scaleX,
         scaleY);
 
-    // === SIMPLE TEXT VALUE FIELDS (cu_aer, cu_alimentare, tip_tiraj) ===
+    /// === SIMPLE TEXT VALUE FIELDS (cu_aer, cu_alimentare, tip_tiraj) ===
     _addTextOverlay(
         overlays,
         'cu_aer',
@@ -248,26 +238,26 @@ class SimplePdfGenerationService {
         scaleX,
         scaleY);
 
-    // === PAGE 1 CONDITIONAL CHECKMARKS ===
+    /// === PAGE 1 CONDITIONAL CHECKMARKS ===
     _addConditionalApparatCheckmarks(
         overlays, formData, fieldPositions, scaleX, scaleY);
 
-    // === PAGE 1 OPERATION CHECKMARKS ===
+    /// === PAGE 1 OPERATION CHECKMARKS ===
     _addOperationCheckmarks(overlays, formData, fieldPositions, scaleX, scaleY);
 
-    // === PAGE 2 TRIPLE RADIO CHECKMARKS ===
+    /// === PAGE 2 TRIPLE RADIO CHECKMARKS ===
     _addTripleRadioCheckmarks(
         overlays, formData, fieldPositions, scaleX, scaleY);
 
-    // === PAGE 3 MEASUREMENT VALUES ===
+    /// === PAGE 3 MEASUREMENT VALUES ===
     _addMeasurementFieldsAndCheckmarks(
         overlays, formData, fieldPositions, font, scaleX, scaleY);
 
-    // === PAGE 4 ANALYSIS VALUES ===
+    /// === PAGE 4 ANALYSIS VALUES ===
     _addAnalysisFieldsAndCheckmarks(
         overlays, formData, fieldPositions, font, scaleX, scaleY);
 
-    // === PAGE 5 AUTO FIELDS ===
+    /// === PAGE 5 AUTO FIELDS ===
     _addTextOverlay(
         overlays,
         'scadenta_verificare',
@@ -293,21 +283,19 @@ class SimplePdfGenerationService {
         scaleX,
         scaleY);
 
-    // === PAGE 5 CONCLUSION CHECKMARK ===
+    /// === PAGE 5 CONCLUSION CHECKMARK ===
     _addConclusionCheckmark(overlays, formData, fieldPositions, scaleX, scaleY);
 
-    // === PAGE 5 SIGNATURES ===
+    /// === PAGE 5 SIGNATURES ===
     _addSignatureOverlays(overlays, formData, fieldPositions, scaleX, scaleY);
 
     print('Created ${overlays.length} overlays for Raport ISCIR');
     return overlays;
   }
 
-  // Helper method to get field value (handles dropdown with "Altul" option)
   String _getFieldValue(Map<String, dynamic> formData, String key) {
     final value = formData[key]?.toString() ?? '';
 
-    // For dropdown fields that might have custom values
     if (key == 'producator') {
       final dropdownOptions = [
         'Ariston', 'Baxi', 'Beretta', 'Bosch', 'Buderus',
@@ -316,16 +304,15 @@ class SimplePdfGenerationService {
       ];
 
       if (dropdownOptions.contains(value)) {
-        return value; // It's a dropdown selection
+        return value;
       } else {
-        return value; // It's a custom value
+        return value;
       }
     }
 
     return value;
   }
 
-// Conditional checkmarks for "Admiterea functionarii" -> "Aparat nou/vechi"
   void _addConditionalApparatCheckmarks(List<pw.Widget> overlays,
       Map<String, dynamic> formData,
       Map<String, FieldPosition> positions,
@@ -347,7 +334,6 @@ class SimplePdfGenerationService {
     }
   }
 
-// Operation checkmarks (VTP and Repunere are independent)
   void _addOperationCheckmarks(List<pw.Widget> overlays,
       Map<String, dynamic> formData,
       Map<String, FieldPosition> positions,
@@ -366,7 +352,6 @@ class SimplePdfGenerationService {
     }
   }
 
-// Triple radio checkmarks (DA/NU/N_A)
   void _addTripleRadioCheckmarks(List<pw.Widget> overlays,
       Map<String, dynamic> formData,
       Map<String, FieldPosition> positions,
@@ -401,7 +386,6 @@ class SimplePdfGenerationService {
     }
   }
 
-// Measurement fields and their checkmarks (Page 3)
   void _addMeasurementFieldsAndCheckmarks(List<pw.Widget> overlays,
       Map<String, dynamic> formData,
       Map<String, FieldPosition> positions,
@@ -428,7 +412,6 @@ class SimplePdfGenerationService {
     ];
 
     for (String fieldName in measurementFields) {
-      // Add text value
       final valueKey = '${fieldName}_valoare';
       _addTextOverlay(
           overlays,
@@ -439,7 +422,6 @@ class SimplePdfGenerationService {
           scaleX,
           scaleY);
 
-      // Add checkmark for DA/NU/N_A
       final radioValue = formData[fieldName]?.toString() ?? 'N_A';
       String suffix = '';
 
@@ -461,7 +443,6 @@ class SimplePdfGenerationService {
     }
   }
 
-// Analysis fields and their checkmarks (Page 4)
   void _addAnalysisFieldsAndCheckmarks(List<pw.Widget> overlays,
       Map<String, dynamic> formData,
       Map<String, FieldPosition> positions,
@@ -474,7 +455,6 @@ class SimplePdfGenerationService {
     ];
 
     for (String fieldName in analysisFields) {
-      // Add text value
       final valueKey = '${fieldName}_valoare';
       _addTextOverlay(
           overlays,
@@ -485,7 +465,6 @@ class SimplePdfGenerationService {
           scaleX,
           scaleY);
 
-      // Add checkmark for DA/NU/N_A
       final radioValue = formData[fieldName]?.toString() ?? 'N_A';
       String suffix = '';
 
@@ -546,25 +525,21 @@ class SimplePdfGenerationService {
       Map<String, FieldPosition> positions,
       double scaleX,
       double scaleY,) {
-    // Get signature data from Page 5
     final signaturesData = formData['page5_signatures'];
 
     if (signaturesData != null && signaturesData is Map<String, dynamic>) {
-      // semnatura_utilizator
       final utilizatorSignature = signaturesData['semnatura_utilizator'];
       if (utilizatorSignature != null && utilizatorSignature is String) {
         try {
           final signatureBytes = base64Decode(utilizatorSignature);
           final signatureImage = pw.MemoryImage(signatureBytes);
 
-          // Place at semnatura_utilizator position
           if (positions.containsKey('semnatura_utilizator')) {
             overlays.add(_createSignatureOverlay(
                 positions['semnatura_utilizator']!, signatureImage, scaleX,
                 scaleY));
           }
 
-          // Also place at semnatura_instruit position (same signature, different location)
           if (positions.containsKey('semnatura_instruit')) {
             overlays.add(_createSignatureOverlay(
                 positions['semnatura_instruit']!, signatureImage, scaleX,
@@ -575,14 +550,11 @@ class SimplePdfGenerationService {
         }
       }
 
-      // semnatura_rsl (if you have this signature)
       final rslSignature = signaturesData['semnatura_rsl'];
       if (rslSignature != null && rslSignature is String &&
           positions.containsKey('semnatura_rsl')) {
         try {
           final signatureBytes = base64Decode(rslSignature);
-          final signatureImage = pw.MemoryImage(signatureBytes);
-          // Note: Add 'semnatura_rsl' coordinates to your mapping if you need it
         } catch (e) {
           print('Error decoding RSL signature: $e');
         }
@@ -590,7 +562,6 @@ class SimplePdfGenerationService {
     }
   }
 
-  // Create signature overlay
   pw.Widget _createSignatureOverlay(FieldPosition position,
       pw.MemoryImage signatureImage, double scaleX, double scaleY) {
     return pw.Positioned(
@@ -604,10 +575,9 @@ class SimplePdfGenerationService {
     );
   }
 
-  // Your coordinate positions (from the JSON)
   Map<String, FieldPosition> _getRaportIscirFieldPositions() {
     return {
-      // CLIENT INFO
+      /// CLIENT INFO
       'nume_client': FieldPosition(x: 473.99999999999994,
           y: 525.3333333333351,
           width: 784.6666666666665,
@@ -641,7 +611,7 @@ class SimplePdfGenerationService {
           width: 720.6666666666667,
           height: 41.33333333333326),
 
-      // AUTO GENERATED
+      /// AUTO GENERATED
       'report_no': FieldPosition(x: 1033.3333333333367,
           y: 336.6666666666687,
           width: 159.33333333333326,
@@ -651,7 +621,7 @@ class SimplePdfGenerationService {
           width: 342.66666666666674,
           height: 42.0),
 
-      // OPERATION CHECKMARKS
+      /// OPERATION CHECKMARKS
       'tip_aparat_nou': FieldPosition(x: 952.0000000000057,
           y: 383.3333333333354,
           width: 112.66666666666674,
@@ -669,7 +639,7 @@ class SimplePdfGenerationService {
           width: 111.33333333333348,
           height: 88.0),
 
-      // EQUIPMENT FIELDS
+      /// EQUIPMENT FIELDS
       'producator': FieldPosition(x: 1555.3333333333712,
           y: 524.6666666666683,
           width: 784.0,
@@ -703,7 +673,7 @@ class SimplePdfGenerationService {
           width: 728.666666666667,
           height: 42.666666666666515),
 
-      // PAGE 2 TRIPLE RADIOS - Document Verification
+      /// PAGE 2 TRIPLE RADIOS - Document Verification
       'exista_instructiuni_da': FieldPosition(x: 2042.6666666667238,
           y: 984.6666666666648,
           width: 108.66666666666697,
@@ -769,7 +739,7 @@ class SimplePdfGenerationService {
           width: 114.66666666666697,
           height: 43.33333333333326),
 
-      // PAGE 2 TRIPLE RADIOS - Work Verification
+      /// PAGE 2 TRIPLE RADIOS - Work Verification
       'aparat_instalat_da': FieldPosition(x: 2043.3333333334158,
           y: 1263.9999999999898,
           width: 109.33333333333303,
@@ -874,7 +844,7 @@ class SimplePdfGenerationService {
           width: 116.0,
           height: 46.0),
 
-      // PAGE 3 MEASUREMENTS - Values and Checkmarks
+      /// PAGE 3 MEASUREMENTS - Values and Checkmarks
       'verificare_etanseitate_valoare': FieldPosition(x: 1724.6666666667543,
           y: 1726.6666666666445,
           width: 316.0,
@@ -994,7 +964,6 @@ class SimplePdfGenerationService {
           width: 114.66666666666652,
           height: 46.0),
 
-      // Continue with pressure measurements...
       'presiune_rampa_valoare': FieldPosition(x: 1724.0000000001119,
           y: 2094.66666666663,
           width: 317.3333333333335,
@@ -1156,7 +1125,7 @@ class SimplePdfGenerationService {
           height: 46.0),
 
 
-      // PAGE 4 GAS ANALYSIS
+      /// PAGE 4 GAS ANALYSIS
       'co_masurat_valoare': FieldPosition(x: 1724.666666666781,
           y: 2510.666666666646,
           width: 316.0,
@@ -1276,7 +1245,7 @@ class SimplePdfGenerationService {
           width: 116.66666666666697,
           height: 44.66666666666697),
 
-      // PAGE 5 CONCLUSION AND SIGNATURES
+      /// PAGE 5 CONCLUSION AND SIGNATURES
       'aparat_admis': FieldPosition(x: 2155.3333333334617,
           y: 2833.9999999999927,
           width: 231.33333333333348,
@@ -1294,7 +1263,7 @@ class SimplePdfGenerationService {
           width: 916.0,
           height: 47.33333333333303),
 
-      // SIGNATURES - Both positions for the same signature
+      /// SIGNATURES
       'semnatura_instruit': FieldPosition(x: 1467.999999999996,
           y: 3069.33333333334,
           width: 308.6666666666665,

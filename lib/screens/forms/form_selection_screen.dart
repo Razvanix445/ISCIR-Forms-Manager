@@ -21,7 +21,7 @@ class FormSelectionScreen extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Client info card
+            /// Client info card
             Card(
               child: Padding(
                 padding: const EdgeInsets.all(16),
@@ -70,7 +70,7 @@ class FormSelectionScreen extends StatelessWidget {
 
             const SizedBox(height: 16),
 
-            // Form type selection cards
+            /// Form type selection cards
             Expanded(
               child: ListView(
                 children: FormType.values.map((formType) =>
@@ -163,9 +163,8 @@ class FormSelectionScreen extends StatelessWidget {
                   return;
                 }
 
-                Navigator.pop(context); // Close dialog
+                Navigator.pop(context);
 
-                // Create the form
                 final success = await context.read<FormProvider>().createForm(
                   clientId: client.id!,
                   formType: formType,
@@ -181,7 +180,7 @@ class FormSelectionScreen extends StatelessWidget {
                         backgroundColor: Colors.green,
                       ),
                     );
-                    Navigator.pop(context, true); // Return to client detail screen
+                    Navigator.pop(context, true);
                   } else {
                     final error = context.read<FormProvider>().error;
                     ScaffoldMessenger.of(context).showSnackBar(

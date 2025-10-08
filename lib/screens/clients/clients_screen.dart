@@ -5,7 +5,6 @@ import '../../main.dart';
 import '../../providers/client_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../models/client.dart';
-import '../../services/database_service.dart';
 import '../../services/excel_generation_service.dart';
 import '../excel/trimester_selection_dialog.dart';
 import '../forms/widgets/client_card.dart';
@@ -24,7 +23,6 @@ class _ClientsScreenState extends State<ClientsScreen> with TickerProviderStateM
 
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
-  List<Client> _filteredClients = [];
 
   @override
   void initState() {
@@ -39,7 +37,6 @@ class _ClientsScreenState extends State<ClientsScreen> with TickerProviderStateM
 
     _searchController.addListener(_onSearchChanged);
 
-    // Load clients when screen initializes
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<ClientProvider>().loadClients();
       _animationController.forward();
@@ -147,7 +144,7 @@ class _ClientsScreenState extends State<ClientsScreen> with TickerProviderStateM
                 ),
               ),
               actions: [
-                // Excel export button
+                /// Excel export button
                 Container(
                   margin: const EdgeInsets.only(right: 8),
                   decoration: BoxDecoration(
@@ -164,7 +161,7 @@ class _ClientsScreenState extends State<ClientsScreen> with TickerProviderStateM
                   ),
                 ),
 
-                // User menu button
+                /// User menu button
                 Container(
                   margin: const EdgeInsets.only(right: 8),
                   decoration: BoxDecoration(
@@ -698,19 +695,16 @@ class _ClientsScreenState extends State<ClientsScreen> with TickerProviderStateM
 
   Future<void> _generateExcelReport(BuildContext context) async {
     try {
-      // Show trimester selection dialog
       final selection = await showDialog<Map<String, int>>(
         context: context,
         builder: (context) => const TrimesterSelectionDialog(),
       );
 
-      // User cancelled
       if (selection == null) return;
 
       final year = selection['year']!;
       final trimester = selection['trimester']!;
 
-      // Show loading dialog
       showDialog(
         context: context,
         barrierDismissible: false,
