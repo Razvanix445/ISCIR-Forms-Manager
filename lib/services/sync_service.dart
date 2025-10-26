@@ -328,7 +328,27 @@ class SyncService {
 
         print('DEBUG: Found Firestore ID: $firestoreId');
 
-        final formForFirebase = form.copyWith(id: firestoreId);
+        final localClientId = int.tryParse(form.clientId);
+        String? clientFirestoreId = form.clientId;
+
+        if (localClientId != null) {
+          final clientResult = await db.query(
+            'clients',
+            columns: ['firestore_id'],
+            where: 'id = ?',
+            whereArgs: [localClientId],
+          );
+
+          if (clientResult.isNotEmpty) {
+            clientFirestoreId = clientResult.first['firestore_id'] as String?;
+            print('DEBUG: Converted clientId $localClientId to Firestore ID: $clientFirestoreId');
+          }
+        }
+
+        final formForFirebase = form.copyWith(
+          id: firestoreId,
+          clientId: clientFirestoreId ?? form.clientId,
+        );
         await FirestoreService.instance.updateForm(formForFirebase);
 
         print('DEBUG: Successfully updated form in Firebase');
@@ -503,14 +523,17 @@ class SyncService {
       case 'form':
         if (operation == 'create') {
           final localFormId = item['entity_id'] as int;
+          print('DEBUG SYNC: Syncing form creation for local form ID: $localFormId');
 
           final localForm = await DatabaseService.instance.getForm(localFormId);
           if (localForm == null) {
+            print('DEBUG SYNC: ❌ Form not found in local DB');
             return;
           }
 
           final localClientId = int.tryParse(localForm.clientId);
           if (localClientId == null) {
+            print('DEBUG SYNC: ❌ Invalid clientId: ${localForm.clientId}');
             return;
           }
 
@@ -523,16 +546,20 @@ class SyncService {
           );
 
           if (clientResult.isEmpty) {
+            print('DEBUG SYNC: ❌ Client $localClientId not found in local DB');
             return;
           }
 
           final clientFirestoreId = clientResult.first['firestore_id'] as String?;
           if (clientFirestoreId == null || clientFirestoreId.isEmpty) {
-            return;
+            print('DEBUG SYNC: ❌ Client $localClientId has no Firestore ID yet - client needs to sync first');
+            throw Exception('Client not synced yet - will retry later');
           }
 
+          print('DEBUG SYNC: ✅ Client Firestore ID: $clientFirestoreId');
           final formForFirebase = localForm.copyWith(clientId: clientFirestoreId);
           final firestoreFormId = await FirestoreService.instance.createForm(formForFirebase);
+          print('DEBUG SYNC: ✅ Form created in Firebase with ID: $firestoreFormId');
 
           await DatabaseService.instance.updateFormFirestoreId(localFormId, firestoreFormId);
 

@@ -15,15 +15,24 @@ class ExcelGenerationService {
     required int trimester,
   }) async {
     try {
+      // print('DEBUG EXCEL: Starting Excel generation for year=$year, trimester=$trimester');
+
       final allForms = await FirestoreService.instance.getAllForms();
+      // print('DEBUG EXCEL: Loaded ${allForms.length} forms from Firebase');
 
       final filteredForms = _filterFormsByTrimester(allForms, year, trimester);
+      // print('DEBUG EXCEL: Filtered to ${filteredForms.length} forms for this trimester');
 
       filteredForms.sort((a, b) {
         final numA = int.tryParse(a.reportNumber) ?? 0;
         final numB = int.tryParse(b.reportNumber) ?? 0;
         return numA.compareTo(numB);
       });
+
+      // print('DEBUG EXCEL: Forms after sorting:');
+      // for (final form in filteredForms) {
+      //   print('  - Form ID: ${form.id}, reportNumber: ${form.reportNumber}, formData.report_no: ${form.formData['report_no']}');
+      // }
 
       final excel = Excel.createExcel();
 
@@ -175,6 +184,11 @@ class ExcelGenerationService {
       Client client,
       ISCIRForm form,
       ) async {
+    // print('DEBUG EXCEL ROW: Adding row $row for form ${form.id}');
+    // print('  - form.reportNumber: ${form.reportNumber}');
+    // print('  - form.formData keys: ${form.formData.keys.toList()}');
+    // print('  - form.formData.report_no: ${form.formData['report_no']}');
+
     final dataStyle = CellStyle(
       horizontalAlign: HorizontalAlign.Left,
       verticalAlign: VerticalAlign.Center,
@@ -236,6 +250,7 @@ class ExcelGenerationService {
 
     /// Column 10: Raport de verificare Nr./Data
     final reportInfo = '${form.reportNumber}/${_formatDate(form.reportDate)}';
+    print('DEBUG EXCEL: Column 10 reportInfo = "$reportInfo"');
     _setCell(sheet, 10, row, reportInfo, dataStyle);
 
     /// Column 11: Livret aparat Nr. Înregistrare/data
@@ -293,10 +308,16 @@ class ExcelGenerationService {
   List<ISCIRForm> _filterFormsByTrimester(List<ISCIRForm> forms, int year, int trimester) {
     final dateRange = _getTrimesterDateRange(year, trimester);
 
+    // print('DEBUG FILTER: Trimester $trimester/$year range: ${_formatDate(dateRange['start']!)} to ${_formatDate(dateRange['end']!)}');
+
     return forms.where((form) {
       final reportDate = form.reportDate;
-      return reportDate.isAfter(dateRange['start']!.subtract(Duration(days: 1))) &&
+      final isInRange = reportDate.isAfter(dateRange['start']!.subtract(Duration(days: 1))) &&
           reportDate.isBefore(dateRange['end']!.add(Duration(days: 1)));
+
+      // print('  Form ${form.id} (reportNumber: ${form.reportNumber}): reportDate=${_formatDate(reportDate)}, inRange=$isInRange');
+
+      return isInRange;
     }).toList();
   }
 

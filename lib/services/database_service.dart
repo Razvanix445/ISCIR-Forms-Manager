@@ -335,6 +335,17 @@ class DatabaseService {
     });
   }
 
+  Future<int> getHighestReportNumber() async {
+    final db = await database;
+    final result = await db.rawQuery('''
+    SELECT MAX(CAST(report_number AS INTEGER)) as max_number 
+    FROM forms 
+    WHERE report_number GLOB '[0-9]*'
+  ''');
+
+    return (result.first['max_number'] as int?) ?? 0;
+  }
+
   Future<List<Map<String, dynamic>>> getUnsyncedItems() async {
     final db = await database;
     return await db.query('sync_queue', where: 'synced = 0', orderBy: 'created_at ASC');

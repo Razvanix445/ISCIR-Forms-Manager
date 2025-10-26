@@ -26,6 +26,10 @@ void main() async {
 
   SyncService.instance.initialize();
 
+  if (await SyncService.instance.isOnline()) {
+    SyncService.instance.syncToCloud();
+  }
+
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
       statusBarColor: Colors.transparent,
