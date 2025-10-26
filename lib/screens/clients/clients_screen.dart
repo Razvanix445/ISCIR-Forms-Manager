@@ -5,7 +5,9 @@ import '../../main.dart';
 import '../../providers/client_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../models/client.dart';
+import '../../services/database_service.dart';
 import '../../services/excel_generation_service.dart';
+import '../../services/firestore_service.dart';
 import '../excel/trimester_selection_dialog.dart';
 import '../forms/widgets/client_card.dart';
 import 'add_edit_client_screen.dart';
@@ -628,46 +630,186 @@ class _ClientsScreenState extends State<ClientsScreen> with TickerProviderStateM
   }
 
   Widget _buildModernFAB() {
-    return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            Theme
-                .of(context)
-                .colorScheme
-                .primary,
-            Theme
-                .of(context)
-                .colorScheme
-                .secondary,
-          ],
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        FloatingActionButton(
+          onPressed: () async {
+            final db = await DatabaseService.instance.database;
+
+            final unsynced = await db.query('forms', where: 'firestore_id IS NULL');
+
+            if (unsynced.isEmpty) {
+              showDialog(
+                context: context,
+                builder: (context) => AlertDialog(
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                  title: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.green.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Icon(Icons.check_circle, color: Colors.green),
+                      ),
+                      SizedBox(width: 12),
+                      Text('Sincronizare'),
+                    ],
+                  ),
+                  content: Text('Nu există formulare nesincronizate'),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: Text('OK'),
+                    ),
+                  ],
+                ),
+              );
+              return;
+            }
+
+            print('Found ${unsynced.length} unsynced forms');
+            int successCount = 0;
+            int failCount = 0;
+
+            for (var formData in unsynced) {
+              final formId = formData['id'] as int;
+              print('Manually syncing form $formId...');
+
+              final form = await DatabaseService.instance.getForm(formId);
+              if (form == null) {
+                failCount++;
+                continue;
+              }
+
+              final localClientId = int.tryParse(form.clientId);
+              if (localClientId == null) {
+                failCount++;
+                continue;
+              }
+
+              final clientResult = await db.query(
+                'clients',
+                columns: ['firestore_id'],
+                where: 'id = ?',
+                whereArgs: [localClientId],
+              );
+
+              if (clientResult.isEmpty) {
+                print('Client $localClientId not found');
+                failCount++;
+                continue;
+              }
+
+              final clientFirestoreId = clientResult.first['firestore_id'] as String?;
+              if (clientFirestoreId == null) {
+                print('Client has no firestore_id yet');
+                failCount++;
+                continue;
+              }
+
+              try {
+                final formForFirebase = form.copyWith(clientId: clientFirestoreId);
+                final firestoreId = await FirestoreService.instance.createForm(formForFirebase);
+                await DatabaseService.instance.updateFormFirestoreId(formId, firestoreId);
+                print('✅ Form $formId synced with ID $firestoreId');
+                successCount++;
+              } catch (e) {
+                print('❌ Failed: $e');
+                failCount++;
+              }
+            }
+
+            showDialog(
+              context: context,
+              builder: (context) => AlertDialog(
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                title: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: (successCount > 0 && failCount == 0 ? Colors.green : Colors.orange).withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Icon(
+                        successCount > 0 && failCount == 0 ? Icons.check_circle : Icons.info,
+                        color: successCount > 0 && failCount == 0 ? Colors.green : Colors.orange,
+                      ),
+                    ),
+                    SizedBox(width: 12),
+                    Text('Rezultat Sincronizare'),
+                  ],
+                ),
+                content: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.check_circle, color: Colors.green, size: 20),
+                        SizedBox(width: 8),
+                        Text(
+                          'Sincronizate cu succes: $successCount',
+                          style: TextStyle(fontSize: 16),
+                        ),
+                      ],
+                    ),
+                    SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Icon(Icons.error, color: Colors.red, size: 20),
+                        SizedBox(width: 8),
+                        Text(
+                          'Eșuate: $failCount',
+                          style: TextStyle(fontSize: 16),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: Text('OK'),
+                  ),
+                ],
+              ),
+            );
+          },
+          heroTag: 'sync',
+          backgroundColor: Colors.white,
+          child: Icon(Icons.cloud_upload, color: Theme.of(context).colorScheme.primary),
         ),
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Theme
-                .of(context)
-                .colorScheme
-                .primary
-                .withOpacity(0.4),
-            blurRadius: 20,
-            offset: const Offset(0, 10),
+        SizedBox(height: 16),
+        Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                Theme.of(context).colorScheme.primary,
+                Theme.of(context).colorScheme.secondary,
+              ],
+            ),
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Theme.of(context).colorScheme.primary.withOpacity(0.4),
+                blurRadius: 20,
+                offset: const Offset(0, 10),
+              ),
+            ],
           ),
-        ],
-      ),
-      child: FloatingActionButton.extended(
-        onPressed: _addNewClient,
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        icon: const Icon(Icons.add, color: Colors.white),
-        label: const Text(
-          'Adaugă Client',
-          style: TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.w600,
+          child: FloatingActionButton(
+            onPressed: _addNewClient,
+            heroTag: 'add',
+            backgroundColor: Colors.blue,
+            elevation: 2,
+            child: const Icon(Icons.add, color: Colors.white),
           ),
         ),
-      ),
+      ],
     );
   }
 

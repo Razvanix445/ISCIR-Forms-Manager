@@ -81,6 +81,11 @@ class _RaportIscirPage1State extends State<RaportIscirPage1> with TickerProvider
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _buildAnimatedSection(
+              index: 0,
+              child: _buildReportNumberSection(),
+            ),
+            const SizedBox(height: 24),
+            _buildAnimatedSection(
               index: 2,
               child: _buildOperationSection(),
             ),
@@ -108,6 +113,41 @@ class _RaportIscirPage1State extends State<RaportIscirPage1> with TickerProvider
           ),
         );
       },
+    );
+  }
+
+  Widget _buildReportNumberSection() {
+    if (!widget.controllers.containsKey('report_no')) {
+      final currentReportNo = widget.form.formData['report_no']?.toString() ?? '';
+      widget.controllers['report_no'] = TextEditingController(text: currentReportNo);
+    }
+
+    return _buildModernCard(
+      title: 'Număr Raport',
+      icon: Icons.numbers,
+      iconColor: Colors.blue,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Editați numărul de raport dacă este necesar',
+            style: TextStyle(
+              fontSize: 14,
+              color: Colors.grey.shade600,
+              fontStyle: FontStyle.italic,
+            ),
+          ),
+          const SizedBox(height: 12),
+          TextFormField(
+            controller: widget.controllers['report_no'],
+            keyboardType: TextInputType.text,
+            onChanged: (value) => widget.onDataChanged(),
+            decoration: InputDecoration(
+              hintText: 'ex: 35',
+            ),
+          ),
+        ],
+      ),
     );
   }
 

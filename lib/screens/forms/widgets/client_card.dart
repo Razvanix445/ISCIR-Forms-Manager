@@ -24,6 +24,7 @@ class _ClientCardState extends State<ClientCard>
     with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<double> _scaleAnimation;
+  bool _isPressed = false;
 
   @override
   void initState() {

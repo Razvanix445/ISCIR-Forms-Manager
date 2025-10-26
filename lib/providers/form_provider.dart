@@ -61,12 +61,10 @@ class FormProvider with ChangeNotifier {
 
       final now = DateTime.now();
 
-      final totalCount = await DatabaseService.instance.getTotalFormsCount();
-      const int STARTING_REPORT_NUMBER = 29;
-      final nextNumber = totalCount + STARTING_REPORT_NUMBER;
-      final autoReportNumber = nextNumber.toString();
+      final highestReportNumber = await DatabaseService.instance.getHighestReportNumber();
+      final autoReportNumber = (highestReportNumber + 1).toString();
 
-      print('DEBUG: Generated report number: $autoReportNumber');
+      print('DEBUG: Generated report number: $autoReportNumber (highest was $highestReportNumber)');
 
       final form = ISCIRForm(
         clientId: clientId,
@@ -147,10 +145,24 @@ class FormProvider with ChangeNotifier {
 
       final index = _forms.indexWhere((f) => f.id == formId);
       if (index != -1) {
+        String? newReportNumber;
+        if (formData.containsKey('report_no')) {
+          newReportNumber = formData['report_no'].toString();
+        }
+
+        final mergedFormData = Map<String, dynamic>.from(_forms[index].formData);
+        mergedFormData.addAll(formData);
+
         _forms[index] = _forms[index].copyWith(
-          formData: formData,
+          formData: mergedFormData,
+          reportNumber: newReportNumber,
           updatedAt: DateTime.now(),
         );
+
+        if (newReportNumber != null) {
+          await SyncService.instance.updateForm(_forms[index]);
+        }
+
         notifyListeners();
       }
 
