@@ -56,6 +56,14 @@ class _ClientsScreenState extends State<ClientsScreen> with TickerProviderStateM
     setState(() {
       _searchQuery = _searchController.text.toLowerCase();
     });
+
+    // Trigger search when user types
+    if (_searchQuery.isNotEmpty) {
+      context.read<ClientProvider>().searchClients(_searchQuery);
+    } else {
+      // Load recent clients when search is cleared
+      context.read<ClientProvider>().loadClients();
+    }
   }
 
   List<Client> _getFilteredClients(List<Client> clients) {
@@ -214,16 +222,19 @@ class _ClientsScreenState extends State<ClientsScreen> with TickerProviderStateM
                               return _buildErrorState(clientProvider);
                             }
 
-                            final allClients = clientProvider.clients;
-                            final filteredClients = _getFilteredClients(
-                                allClients);
+                            // Use search results when searching, recent clients otherwise
+                            final allClients = _searchQuery.isNotEmpty
+                                ? clientProvider.searchResults
+                                : clientProvider.recentClients;
 
-                            if (allClients.isEmpty) {
+                            // Remove local filtering since search is handled by provider
+                            final filteredClients = allClients;
+
+                            if (allClients.isEmpty && _searchQuery.isEmpty) {
                               return _buildEmptyState();
                             }
 
-                            if (filteredClients.isEmpty &&
-                                _searchQuery.isNotEmpty) {
+                            if (filteredClients.isEmpty && _searchQuery.isNotEmpty) {
                               return _buildNoSearchResultsState();
                             }
 

@@ -43,6 +43,46 @@ class FirestoreService {
     return clients;
   }
 
+  Future<List<Client>> getRecentClients({int limit = 10}) async {
+    final snapshot = await _clientsCollection
+        .orderBy('updated_at', descending: true)
+        .limit(limit)
+        .get();
+
+    return snapshot.docs.map((doc) {
+      final data = doc.data();
+      data['id'] = doc.id;
+      return Client.fromMap(data);
+    }).toList();
+  }
+
+  Future<List<Client>> searchClients(String query) async {
+    if (query.isEmpty) return [];
+
+    final snapshot = await _clientsCollection.get();
+    final lowerQuery = query.toLowerCase();
+
+    final matchingClients = snapshot.docs.where((doc) {
+      final data = doc.data();
+      final firstName = (data['first_name'] ?? '').toString().toLowerCase();
+      final lastName = (data['last_name'] ?? '').toString().toLowerCase();
+      final email = (data['email'] ?? '').toString().toLowerCase();
+      final phone = (data['phone'] ?? '').toString().toLowerCase();
+
+      return firstName.contains(lowerQuery) ||
+          lastName.contains(lowerQuery) ||
+          email.contains(lowerQuery) ||
+          phone.contains(lowerQuery);
+    }).map((doc) {
+      final data = doc.data();
+      data['id'] = doc.id;
+      return Client.fromMap(data);
+    }).toList();
+
+    matchingClients.sort((a, b) => a.firstName.compareTo(b.firstName));
+    return matchingClients;
+  }
+
   Future<Client?> getClient(String clientId) async {
     final doc = await _clientsCollection.doc(clientId).get();
     if (!doc.exists) return null;
