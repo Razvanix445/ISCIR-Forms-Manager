@@ -84,6 +84,84 @@ class SyncService {
     return localClients;
   }
 
+  Future<List<Client>> getRecentClients({int limit = 15}) async {
+    // First try to get recent clients from local database (fast)
+    final localRecent = await DatabaseService.instance.getRecentClients(limit: limit);
+
+    // If we have enough local clients, return them immediately
+    if (localRecent.length >= limit) {
+      return localRecent;
+    }
+
+    // Only sync with cloud if we need more clients and we're online
+    if (await isOnline()) {
+      try {
+        // Get recent clients from Firestore
+        final cloudRecent = await FirestoreService.instance.getRecentClients(limit: limit);
+
+        // Sync them to local database
+        for (var client in cloudRecent) {
+          await DatabaseService.instance.createClient(
+            client,
+            firestoreId: client.id,
+          );
+        }
+
+        // Return fresh local results
+        return await DatabaseService.instance.getRecentClients(limit: limit);
+      } catch (e) {
+        print('Failed to sync recent clients: $e');
+        // Return whatever we have locally
+        return localRecent;
+      }
+    }
+
+    return localRecent;
+  }
+
+  Future<List<Client>> searchClients(String query) async {
+    // Always search locally first for immediate results
+    final localResults = await DatabaseService.instance.searchClients(query);
+
+    if (await isOnline()) {
+      try {
+        // Search all clients from Firestore (this searches the entire cloud database)
+        final cloudResults = await FirestoreService.instance.searchClients(query);
+
+        // Get existing local Firestore IDs to avoid duplicates
+        final db = await DatabaseService.instance.database;
+        final existingFirestoreIds = await db.query(
+          'clients',
+          columns: ['firestore_id'],
+          where: 'firestore_id IS NOT NULL AND firestore_id != ""',
+        );
+
+        final localFirestoreIdSet = existingFirestoreIds
+            .map((row) => row['firestore_id'] as String)
+            .toSet();
+
+        // Add cloud clients that aren't already stored locally
+        for (var cloudClient in cloudResults) {
+          if (!localFirestoreIdSet.contains(cloudClient.id)) {
+            await DatabaseService.instance.createClient(
+              cloudClient,
+              firestoreId: cloudClient.id,
+            );
+          }
+        }
+
+        // Return fresh search results from local DB (now includes newly added cloud clients)
+        return await DatabaseService.instance.searchClients(query);
+      } catch (e) {
+        print('Failed to search cloud clients: $e');
+        // Return local results if cloud search fails
+        return localResults;
+      }
+    }
+
+    return localResults;
+  }
+
   Future<bool> updateClient(Client client) async {
     print('DEBUG: updateClient called for client ID: ${client.id}');
 

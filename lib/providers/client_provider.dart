@@ -3,12 +3,16 @@ import '../models/client.dart';
 import '../services/sync_service.dart';
 
 class ClientProvider with ChangeNotifier {
-  List<Client> _clients = [];
+  List<Client> _recentClients = [];
+  List<Client> _searchResults = [];
   bool _isLoading = false;
+  bool _isSearching = false;
   String? _error;
 
-  List<Client> get clients => _clients;
+  List<Client> get recentClients => _recentClients;
+  List<Client> get searchResults => _searchResults;
   bool get isLoading => _isLoading;
+  bool get isSearching => _isSearching;
   String? get error => _error;
 
   /// Load all clients from database
@@ -18,13 +22,48 @@ class ClientProvider with ChangeNotifier {
     notifyListeners();
 
     try {
-      _clients = await SyncService.instance.loadClients();
-      _clients.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
-      print('Loaded ${_clients.length} clients');
+      // Load only recent 10 clients
+      _recentClients = await SyncService.instance.getRecentClients();
+      _searchResults = []; // Clear search results
     } catch (e) {
-      print('Error loading clients: $e');
-      _error = 'Failed to load clients: $e';
-      _clients = [];
+      _error = e.toString();
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  // Future<void> loadRecentClients() async {
+  //   _isLoading = true;
+  //   notifyListeners();
+  //
+  //   try {
+  //     _recentClients = await SyncService.instance.getRecentClients(10);
+  //     print('✅ Loaded ${_recentClients.length} recent clients');
+  //   } catch (e) {
+  //     print('❌ Error loading recent clients: $e');
+  //   } finally {
+  //     _isLoading = false;
+  //     notifyListeners();
+  //   }
+  // }
+
+  Future<void> searchClients(String query) async {
+    if (query.isEmpty) {
+      _searchResults = [];
+      notifyListeners();
+      return;
+    }
+
+    _isLoading = true;
+    _error = null;
+    notifyListeners();
+
+    try {
+      _searchResults = await SyncService.instance.searchClients(query);
+    } catch (e) {
+      _error = e.toString();
+      _searchResults = [];
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -38,10 +77,10 @@ class ClientProvider with ChangeNotifier {
       final docId = await SyncService.instance.createClient(client);
       print('DEBUG: Created client with ID: $docId');
       final newClient = client.copyWith(id: docId);
-      _clients.add(newClient);
-      _clients.sort((a, b) => a.name.compareTo(b.name));
+      _recentClients.add(newClient);
+      _recentClients.sort((a, b) => a.name.compareTo(b.name));
       notifyListeners();
-      print('DEBUG: Client added to list. Total clients: ${_clients.length}');
+      print('DEBUG: Client added to list. Total clients: ${_recentClients.length}');
       return true;
     } catch (e) {
       print('DEBUG: Error adding client: $e');
@@ -55,10 +94,10 @@ class ClientProvider with ChangeNotifier {
   Future<bool> updateClient(Client client) async {
     try {
       await SyncService.instance.updateClient(client);
-      final index = _clients.indexWhere((c) => c.id == client.id);
+      final index = _recentClients.indexWhere((c) => c.id == client.id);
       if (index != -1) {
-        _clients[index] = client;
-        _clients.sort((a, b) => a.name.compareTo(b.name));
+        _recentClients[index] = client;
+        _recentClients.sort((a, b) => a.name.compareTo(b.name));
         notifyListeners();
       }
       return true;
@@ -73,7 +112,7 @@ class ClientProvider with ChangeNotifier {
   Future<bool> deleteClient(String id) async {
     try {
       await SyncService.instance.deleteClient(id);
-      _clients.removeWhere((client) => client.id == id);
+      _recentClients.removeWhere((client) => client.id == id);
       notifyListeners();
       return true;
     } catch (e) {
@@ -86,7 +125,7 @@ class ClientProvider with ChangeNotifier {
   /// Get specific client by ID
   Client? getClientById(String id) {
     try {
-      return _clients.firstWhere((client) => client.id == id);
+      return _recentClients.firstWhere((client) => client.id == id);
     } catch (e) {
       return null;
     }
