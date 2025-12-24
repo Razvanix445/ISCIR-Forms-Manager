@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'database_service.dart';
 import 'firestore_service.dart';
@@ -12,869 +11,450 @@ class SyncService {
   SyncService._();
 
   final Connectivity _connectivity = Connectivity();
-  StreamSubscription<List<ConnectivityResult>>? _connectivitySubscription;
-  bool _isSyncing = false;
 
-  void initialize() {
-    _connectivitySubscription =
-        _connectivity.onConnectivityChanged.listen((result) {
-          if (result.contains(ConnectivityResult.mobile) ||
-              result.contains(ConnectivityResult.wifi)) {
-            syncToCloud();
-          }
-        });
-  }
-
-  void dispose() {
-    _connectivitySubscription?.cancel();
-  }
-
+  /// Check if device is online
   Future<bool> isOnline() async {
     final connectivityResult = await _connectivity.checkConnectivity();
     return connectivityResult.contains(ConnectivityResult.mobile) ||
         connectivityResult.contains(ConnectivityResult.wifi);
   }
 
-  /// CLIENT OPERATIONS
+  /// ============================================
+  /// CLIENT OPERATIONS (LOCAL ONLY)
+  /// ============================================
 
+  /// Create client locally (no cloud upload)
   Future<String> createClient(Client client) async {
     final localId = await DatabaseService.instance.createClient(client);
-
-    if (await isOnline()) {
-      try {
-        final firestoreId = await FirestoreService.instance.createClient(
-            client);
-
-        await DatabaseService.instance.updateClientFirestoreId(
-            localId, firestoreId);
-
-        return firestoreId;
-      } catch (e) {
-        print('Failed to sync client to cloud: $e');
-        await DatabaseService.instance.addToSyncQueue(
-          entityType: 'client',
-          entityId: localId,
-          operation: 'create',
-          data: client.toMap(),
-        );
-        return localId.toString();
-      }
-    } else {
-      await DatabaseService.instance.addToSyncQueue(
-        entityType: 'client',
-        entityId: localId,
-        operation: 'create',
-        data: client.toMap(),
-      );
-      return localId.toString();
-    }
+    return localId.toString();
   }
 
-  Future<List<Client>> loadClients() async {
-    final localClients = await DatabaseService.instance.getAllClients();
-
-    if (await isOnline()) {
-      final hasChanges = await syncFromCloud();
-
-      if (hasChanges) {
-        return await DatabaseService.instance.getAllClients();
-      }
-    }
-
-    return localClients;
-  }
-
-  Future<List<Client>> getRecentClients({int limit = 15}) async {
-    // First try to get recent clients from local database (fast)
-    final localRecent = await DatabaseService.instance.getRecentClients(limit: limit);
-
-    // If we have enough local clients, return them immediately
-    if (localRecent.length >= limit) {
-      return localRecent;
-    }
-
-    // Only sync with cloud if we need more clients and we're online
-    if (await isOnline()) {
-      try {
-        // Get recent clients from Firestore
-        final cloudRecent = await FirestoreService.instance.getRecentClients(limit: limit);
-
-        // Sync them to local database
-        for (var client in cloudRecent) {
-          await DatabaseService.instance.createClient(
-            client,
-            firestoreId: client.id,
-          );
-        }
-
-        // Return fresh local results
-        return await DatabaseService.instance.getRecentClients(limit: limit);
-      } catch (e) {
-        print('Failed to sync recent clients: $e');
-        // Return whatever we have locally
-        return localRecent;
-      }
-    }
-
-    return localRecent;
-  }
-
-  Future<List<Client>> searchClients(String query) async {
-    // Always search locally first for immediate results
-    final localResults = await DatabaseService.instance.searchClients(query);
-
-    if (await isOnline()) {
-      try {
-        // Search all clients from Firestore (this searches the entire cloud database)
-        final cloudResults = await FirestoreService.instance.searchClients(query);
-
-        // Get existing local Firestore IDs to avoid duplicates
-        final db = await DatabaseService.instance.database;
-        final existingFirestoreIds = await db.query(
-          'clients',
-          columns: ['firestore_id'],
-          where: 'firestore_id IS NOT NULL AND firestore_id != ""',
-        );
-
-        final localFirestoreIdSet = existingFirestoreIds
-            .map((row) => row['firestore_id'] as String)
-            .toSet();
-
-        // Add cloud clients that aren't already stored locally
-        for (var cloudClient in cloudResults) {
-          if (!localFirestoreIdSet.contains(cloudClient.id)) {
-            await DatabaseService.instance.createClient(
-              cloudClient,
-              firestoreId: cloudClient.id,
-            );
-          }
-        }
-
-        // Return fresh search results from local DB (now includes newly added cloud clients)
-        return await DatabaseService.instance.searchClients(query);
-      } catch (e) {
-        print('Failed to search cloud clients: $e');
-        // Return local results if cloud search fails
-        return localResults;
-      }
-    }
-
-    return localResults;
-  }
-
+  /// Update client locally (no cloud upload)
   Future<bool> updateClient(Client client) async {
-    print('DEBUG: updateClient called for client ID: ${client.id}');
-
     final localId = int.tryParse(client.id!);
-    if (localId == null) {
-      print('ERROR: Invalid local ID: ${client.id}');
-      return false;
-    }
+    if (localId == null) return false;
 
     await DatabaseService.instance.updateClient(client);
-    print('DEBUG: Updated local client with local ID: $localId');
-
-    if (await isOnline()) {
-      try {
-        final db = await DatabaseService.instance.database;
-        final result = await db.query(
-          'clients',
-          columns: ['firestore_id'],
-          where: 'id = ?',
-          whereArgs: [localId],
-        );
-
-        if (result.isEmpty) {
-          print('ERROR: Client not found in local database');
-          return false;
-        }
-
-        final firestoreId = result.first['firestore_id'] as String?;
-
-        if (firestoreId == null || firestoreId.isEmpty) {
-          print('DEBUG: Client has no Firestore ID yet - adding to sync queue');
-          await DatabaseService.instance.addToSyncQueue(
-            entityType: 'client',
-            entityId: localId,
-            operation: 'update',
-            data: client.toMap(),
-          );
-          return true;
-        }
-
-        print('DEBUG: Found Firestore ID: $firestoreId');
-
-        final clientForFirebase = client.copyWith(id: firestoreId);
-        await FirestoreService.instance.updateClient(clientForFirebase);
-
-        print('DEBUG: Successfully updated client in Firebase');
-        return true;
-      } catch (e) {
-        print('ERROR: Failed to sync update to cloud: $e');
-        await DatabaseService.instance.addToSyncQueue(
-          entityType: 'client',
-          entityId: localId,
-          operation: 'update',
-          data: client.toMap(),
-        );
-      }
-    } else {
-      print('DEBUG: Offline - adding update to sync queue');
-      await DatabaseService.instance.addToSyncQueue(
-        entityType: 'client',
-        entityId: localId,
-        operation: 'update',
-        data: client.toMap(),
-      );
-    }
-
     return true;
   }
 
+  /// Delete client locally (no cloud delete)
   Future<bool> deleteClient(String clientId) async {
-    print('DEBUG: deleteClient called for client ID: $clientId');
-
     final localId = int.tryParse(clientId);
-    if (localId == null) {
-      print('ERROR: Invalid local ID: $clientId');
-      return false;
-    }
-
-    String? firestoreId;
-    try {
-      final db = await DatabaseService.instance.database;
-      final result = await db.query(
-        'clients',
-        columns: ['firestore_id'],
-        where: 'id = ?',
-        whereArgs: [localId],
-      );
-
-      if (result.isNotEmpty) {
-        firestoreId = result.first['firestore_id'] as String?;
-        print('DEBUG: Found Firestore ID before delete: $firestoreId');
-      }
-    } catch (e) {
-      print('ERROR: Failed to get Firestore ID: $e');
-    }
+    if (localId == null) return false;
 
     await DatabaseService.instance.deleteClient(localId);
-    print('DEBUG: Deleted client from local database');
-
-    if (await isOnline()) {
-      try {
-        if (firestoreId != null && firestoreId.isNotEmpty) {
-          print('DEBUG: Deleting from Firestore with ID: $firestoreId');
-          await FirestoreService.instance.deleteClient(firestoreId);
-          print('DEBUG: Successfully deleted from Firebase');
-          return true;
-        } else {
-          print('DEBUG: Client has no Firestore ID - was created offline and never synced');
-          return true;
-        }
-      } catch (e) {
-        print('ERROR: Failed to sync delete to cloud: $e');
-        if (firestoreId != null && firestoreId.isNotEmpty) {
-          await DatabaseService.instance.addToSyncQueue(
-            entityType: 'client',
-            entityId: localId,
-            operation: 'delete',
-            data: {'id': firestoreId},
-          );
-        }
-      }
-    } else {
-      print('DEBUG: Offline - adding delete to sync queue');
-      if (firestoreId != null && firestoreId.isNotEmpty) {
-        await DatabaseService.instance.addToSyncQueue(
-          entityType: 'client',
-          entityId: localId,
-          operation: 'delete',
-          data: {'id': firestoreId},
-        );
-      }
-    }
-
     return true;
   }
 
-  /// FORM OPERATIONS
+  /// Load clients from local database
+  Future<List<Client>> loadClients() async {
+    return await DatabaseService.instance.getAllClients();
+  }
 
+  /// Get recent clients from local database
+  Future<List<Client>> getRecentClients({int limit = 15}) async {
+    return await DatabaseService.instance.getRecentClients(limit: limit);
+  }
+
+  /// Search clients in local database only
+  Future<List<Client>> searchClients(String query) async {
+    return await DatabaseService.instance.searchClients(query);
+  }
+
+  /// ============================================
+  /// FORM OPERATIONS (LOCAL ONLY)
+  /// ============================================
+
+  /// Create form locally (no cloud upload)
   Future<String> createForm(ISCIRForm form, int localClientId) async {
-    print('DEBUG: createForm in SyncService - LOCAL client ID: $localClientId');
-
     final formForLocal = form.copyWith(clientId: localClientId.toString());
-
     final localFormId = await DatabaseService.instance.createForm(formForLocal);
-    print('DEBUG: Created form in local DB with ID: $localFormId');
-
-    if (await isOnline()) {
-      try {
-        final db = await DatabaseService.instance.database;
-        final result = await db.query(
-          'clients',
-          columns: ['firestore_id'],
-          where: 'id = ?',
-          whereArgs: [localClientId],
-        );
-
-        String? clientFirestoreId;
-        if (result.isNotEmpty) {
-          clientFirestoreId = result.first['firestore_id'] as String?;
-        }
-
-        if (clientFirestoreId != null && clientFirestoreId.isNotEmpty) {
-          print('DEBUG: Client has Firestore ID: $clientFirestoreId');
-
-          final formForFirebase = formForLocal.copyWith(clientId: clientFirestoreId);
-          final firestoreFormId = await FirestoreService.instance.createForm(formForFirebase);
-
-          print('DEBUG: Created form in Firebase with ID: $firestoreFormId');
-
-          await DatabaseService.instance.updateFormFirestoreId(localFormId, firestoreFormId);
-          print('DEBUG: Linked local form $localFormId to Firestore ID $firestoreFormId');
-        } else {
-          print('DEBUG: Client has no Firestore ID yet - client was created offline');
-          await DatabaseService.instance.addToSyncQueue(
-            entityType: 'form',
-            entityId: localFormId,
-            operation: 'create',
-            data: formForLocal.toMap(),
-          );
-        }
-      } catch (e) {
-        print('ERROR: Failed to sync form to cloud: $e');
-        await DatabaseService.instance.addToSyncQueue(
-          entityType: 'form',
-          entityId: localFormId,
-          operation: 'create',
-          data: formForLocal.toMap(),
-        );
-      }
-    } else {
-      print('DEBUG: Offline - adding form to sync queue');
-      await DatabaseService.instance.addToSyncQueue(
-        entityType: 'form',
-        entityId: localFormId,
-        operation: 'create',
-        data: formForLocal.toMap(),
-      );
-    }
-
     return localFormId.toString();
   }
 
+  /// Update form locally (no cloud upload)
   Future<bool> updateForm(ISCIRForm form) async {
-    print('DEBUG: updateForm called for form ID: ${form.id}');
-
     final localId = int.tryParse(form.id!);
-    if (localId == null) {
-      print('ERROR: Invalid local ID: ${form.id}');
-      return false;
-    }
+    if (localId == null) return false;
 
     await DatabaseService.instance.updateForm(form);
-    print('DEBUG: Updated local form with local ID: $localId');
-
-    if (await isOnline()) {
-      try {
-        final db = await DatabaseService.instance.database;
-        final result = await db.query(
-          'forms',
-          columns: ['firestore_id'],
-          where: 'id = ?',
-          whereArgs: [localId],
-        );
-
-        if (result.isEmpty) {
-          print('ERROR: Form not found in local database');
-          return false;
-        }
-
-        final firestoreId = result.first['firestore_id'] as String?;
-
-        if (firestoreId == null || firestoreId.isEmpty) {
-          print('DEBUG: Form has no Firestore ID yet - adding to sync queue');
-          await DatabaseService.instance.addToSyncQueue(
-            entityType: 'form',
-            entityId: localId,
-            operation: 'update',
-            data: form.toMap(),
-          );
-          return true;
-        }
-
-        print('DEBUG: Found Firestore ID: $firestoreId');
-
-        final localClientId = int.tryParse(form.clientId);
-        String? clientFirestoreId = form.clientId;
-
-        if (localClientId != null) {
-          final clientResult = await db.query(
-            'clients',
-            columns: ['firestore_id'],
-            where: 'id = ?',
-            whereArgs: [localClientId],
-          );
-
-          if (clientResult.isNotEmpty) {
-            clientFirestoreId = clientResult.first['firestore_id'] as String?;
-            print('DEBUG: Converted clientId $localClientId to Firestore ID: $clientFirestoreId');
-          }
-        }
-
-        final formForFirebase = form.copyWith(
-          id: firestoreId,
-          clientId: clientFirestoreId ?? form.clientId,
-        );
-        await FirestoreService.instance.updateForm(formForFirebase);
-
-        print('DEBUG: Successfully updated form in Firebase');
-        return true;
-      } catch (e) {
-        print('ERROR: Failed to sync form update to cloud: $e');
-        await DatabaseService.instance.addToSyncQueue(
-          entityType: 'form',
-          entityId: localId,
-          operation: 'update',
-          data: form.toMap(),
-        );
-      }
-    }
-
     return true;
   }
 
+  /// Delete form locally (no cloud delete)
   Future<bool> deleteForm(int formId) async {
-    String? firestoreId;
-    try {
-      final db = await DatabaseService.instance.database;
-      final result = await db.query(
-        'forms',
-        columns: ['firestore_id'],
-        where: 'id = ?',
-        whereArgs: [formId],
-      );
-
-      if (result.isNotEmpty) {
-        firestoreId = result.first['firestore_id'] as String?;
-      }
-    } catch (e) {
-      print('ERROR: Failed to get Firestore ID: $e');
-    }
-
     await DatabaseService.instance.deleteForm(formId);
-
-    if (await isOnline() && firestoreId != null && firestoreId.isNotEmpty) {
-      try {
-        await FirestoreService.instance.deleteForm(firestoreId);
-        return true;
-      } catch (e) {
-        await DatabaseService.instance.addToSyncQueue(
-          entityType: 'form',
-          entityId: formId,
-          operation: 'delete',
-          data: {'id': firestoreId},
-        );
-      }
-    } else if (firestoreId != null && firestoreId.isNotEmpty) {
-      await DatabaseService.instance.addToSyncQueue(
-        entityType: 'form',
-        entityId: formId,
-        operation: 'delete',
-        data: {'id': firestoreId},
-      );
-    } else {
-      print('DEBUG: Form has no Firestore ID - was never synced to cloud');
-    }
-
     return true;
   }
 
+  /// Load forms for a specific client
   Future<List<ISCIRForm>> loadFormsByClient(int clientId) async {
     return await DatabaseService.instance.getFormsByClientId(clientId);
   }
 
+  /// Save form data locally (no cloud upload)
   Future<bool> saveFormData(int formId, Map<String, dynamic> formData) async {
     await DatabaseService.instance.saveFormData(formId, formData);
-
-    if (await isOnline()) {
-      try {
-        final db = await DatabaseService.instance.database;
-        final result = await db.query(
-          'forms',
-          columns: ['firestore_id'],
-          where: 'id = ?',
-          whereArgs: [formId],
-        );
-
-        if (result.isEmpty) {
-          return false;
-        }
-
-        final firestoreId = result.first['firestore_id'] as String?;
-
-        if (firestoreId == null || firestoreId.isEmpty) {
-          await DatabaseService.instance.addToSyncQueue(
-            entityType: 'form_data',
-            entityId: formId,
-            operation: 'update',
-            data: formData,
-          );
-          return true;
-        }
-
-        await FirestoreService.instance.saveFormData(firestoreId, formData);
-
-        return true;
-      } catch (e) {
-        await DatabaseService.instance.addToSyncQueue(
-          entityType: 'form_data',
-          entityId: formId,
-          operation: 'update',
-          data: formData,
-        );
-      }
-    } else {
-      await DatabaseService.instance.addToSyncQueue(
-        entityType: 'form_data',
-        entityId: formId,
-        operation: 'update',
-        data: formData,
-      );
-    }
-
     return true;
   }
 
-  /// SYNC OPERATIONS
+  /// ============================================
+  /// MANUAL SYNC OPERATIONS
+  /// ============================================
 
-  Future<void> syncToCloud() async {
-    if (_isSyncing || !await isOnline()) return;
+  /// Get summary of unsynced data (clients and their forms)
+  Future<Map<String, dynamic>> getUnsyncedSummary() async {
+    final db = await DatabaseService.instance.database;
 
-    _isSyncing = true;
-    print('Starting sync to cloud...');
+    // Get all clients that need syncing (needs_sync = 1)
+    final unsyncedClientRows = await db.query(
+      'clients',
+      where: 'needs_sync = ?',
+      whereArgs: [1],
+    );
 
-    try {
-      final unsyncedItems = await DatabaseService.instance.getUnsyncedItems();
-      print('Found ${unsyncedItems.length} items to sync');
+    List<Map<String, dynamic>> unsyncedClientsWithForms = [];
+    int totalForms = 0;
 
-      for (var item in unsyncedItems) {
-        try {
-          await _syncItem(item);
-          await DatabaseService.instance.markAsSynced(
-            item['id'] as int,
-            item['firestore_id'] as String?,
-          );
-        } catch (e) {
-          print('Failed to sync item ${item['id']}: $e');
-        }
-      }
+    for (var clientRow in unsyncedClientRows) {
+      final clientId = clientRow['id'] as int;
+      final clientName = '${clientRow['first_name']} ${clientRow['last_name']}';
 
-      await DatabaseService.instance.clearSyncedItems();
-      print('Sync completed');
-    } finally {
-      _isSyncing = false;
+      // Count forms that need syncing for this client
+      final formsCount = await db.query(
+        'forms',
+        columns: ['COUNT(*) as count'],
+        where: 'client_id = ? AND needs_sync = ?',
+        whereArgs: [clientId, 1],
+      );
+
+      final formCount = formsCount.first['count'] as int;
+      totalForms += formCount;
+
+      unsyncedClientsWithForms.add({
+        'id': clientId,
+        'name': clientName,
+        'formCount': formCount,
+      });
     }
+
+    // ALSO check for synced clients with unsynced forms
+    final syncedClientsWithUnsyncedForms = await db.rawQuery('''
+      SELECT DISTINCT c.id, c.first_name, c.last_name, COUNT(f.id) as form_count
+      FROM clients c
+      INNER JOIN forms f ON c.id = f.client_id
+      WHERE c.needs_sync = 0
+        AND f.needs_sync = 1
+      GROUP BY c.id, c.first_name, c.last_name
+    ''');
+
+    // Add these to the summary
+    for (var row in syncedClientsWithUnsyncedForms) {
+      final clientId = row['id'] as int;
+      final clientName = '${row['first_name']} ${row['last_name']}';
+      final formCount = row['form_count'] as int;
+
+      totalForms += formCount;
+
+      unsyncedClientsWithForms.add({
+        'id': clientId,
+        'name': clientName,
+        'formCount': formCount,
+        'clientAlreadySynced': true,
+      });
+    }
+
+    return {
+      'clients': unsyncedClientsWithForms,
+      'totalClients': unsyncedClientsWithForms.length,
+      'totalForms': totalForms,
+    };
   }
 
-  Future<void> _syncItem(Map<String, dynamic> item) async {
-    final entityType = item['entity_type'] as String;
-    final operation = item['operation'] as String;
-    final dataString = item['data'] as String;
-    final data = json.decode(dataString) as Map<String, dynamic>;
+  /// Manually upload all unsynced data to cloud
+  Future<Map<String, int>> manualUploadToCloud() async {
+    if (!await isOnline()) {
+      throw Exception('No internet connection');
+    }
 
-    switch (entityType) {
-      case 'client':
-        if (operation == 'create') {
-          final client = Client.fromMap(data);
-          await FirestoreService.instance.createClient(client);
-        } else if (operation == 'update') {
-          final client = Client.fromMap(data);
-          await FirestoreService.instance.updateClient(client);
-        } else if (operation == 'delete') {
-          final id = data['id'] as String;
-          await FirestoreService.instance.deleteClient(id);
-        }
-        break;
+    int successClients = 0;
+    int failClients = 0;
+    int successForms = 0;
+    int failForms = 0;
 
-      case 'form':
-        if (operation == 'create') {
-          final localFormId = item['entity_id'] as int;
-          print('DEBUG SYNC: Syncing form creation for local form ID: $localFormId');
+    final db = await DatabaseService.instance.database;
 
-          final localForm = await DatabaseService.instance.getForm(localFormId);
-          if (localForm == null) {
-            print('DEBUG SYNC: ❌ Form not found in local DB');
-            return;
-          }
+    print('📤 Starting manual upload...');
 
-          final localClientId = int.tryParse(localForm.clientId);
-          if (localClientId == null) {
-            print('DEBUG SYNC: ❌ Invalid clientId: ${localForm.clientId}');
-            return;
-          }
+    // ============================================
+    // STEP 1: Upload clients that need syncing (needs_sync = 1)
+    // ============================================
+    final unsyncedClientRows = await db.query(
+      'clients',
+      where: 'needs_sync = ?',
+      whereArgs: [1],
+    );
 
-          final db = await DatabaseService.instance.database;
-          final clientResult = await db.query(
+    print('📤 Found ${unsyncedClientRows.length} clients that need syncing');
+
+    for (var clientRow in unsyncedClientRows) {
+      final localClientId = clientRow['id'] as int;
+      final client = Client.fromMap(Map<String, dynamic>.from(clientRow));
+      final hasFirestoreId = clientRow['firestore_id'] as String?;
+
+      try {
+        String clientFirestoreId;
+
+        if (hasFirestoreId != null && hasFirestoreId.isNotEmpty) {
+          // ========================================
+          // UPDATE existing client in Firebase
+          // ========================================
+          print('📤 Updating existing client: ${client.name}');
+
+          final clientForFirebase = client.copyWith(id: hasFirestoreId);
+          await FirestoreService.instance.updateClient(clientForFirebase);
+
+          clientFirestoreId = hasFirestoreId;
+
+          // Mark as synced
+          await db.update(
             'clients',
-            columns: ['firestore_id'],
+            {'needs_sync': 0},
             where: 'id = ?',
             whereArgs: [localClientId],
           );
 
-          if (clientResult.isEmpty) {
-            print('DEBUG SYNC: ❌ Client $localClientId not found in local DB');
-            return;
-          }
+          print('✅ Client updated in Firebase');
+        } else {
+          // ========================================
+          // CREATE new client in Firebase
+          // ========================================
+          print('📤 Creating new client: ${client.name}');
 
-          final clientFirestoreId = clientResult.first['firestore_id'] as String?;
-          if (clientFirestoreId == null || clientFirestoreId.isEmpty) {
-            print('DEBUG SYNC: ❌ Client $localClientId has no Firestore ID yet - client needs to sync first');
-            throw Exception('Client not synced yet - will retry later');
-          }
+          clientFirestoreId = await FirestoreService.instance.createClient(client);
 
-          print('DEBUG SYNC: ✅ Client Firestore ID: $clientFirestoreId');
-          final formForFirebase = localForm.copyWith(clientId: clientFirestoreId);
-          final firestoreFormId = await FirestoreService.instance.createForm(formForFirebase);
-          print('DEBUG SYNC: ✅ Form created in Firebase with ID: $firestoreFormId');
+          // Update local record with firestore_id and mark as synced
+          await DatabaseService.instance.updateClientFirestoreId(localClientId, clientFirestoreId);
 
-          await DatabaseService.instance.updateFormFirestoreId(localFormId, firestoreFormId);
-
-        } else if (operation == 'delete') {
-          final id = data['id'] as String;
-          await FirestoreService.instance.deleteForm(id);
+          print('✅ Client created with Firestore ID: $clientFirestoreId');
         }
-        break;
 
-      case 'form_data':
-        final formId = item['entity_id'] as int;
+        successClients++;
 
-        final db = await DatabaseService.instance.database;
-        final result = await db.query(
+        // Now upload all forms for this client that need syncing
+        final clientForms = await db.query(
           'forms',
-          columns: ['firestore_id'],
-          where: 'id = ?',
-          whereArgs: [formId],
+          where: 'client_id = ? AND needs_sync = ?',
+          whereArgs: [localClientId, 1],
         );
 
-        if (result.isEmpty) {
-          return;
+        print('📤 Uploading ${clientForms.length} forms for client...');
+
+        for (var formRow in clientForms) {
+          final localFormId = formRow['id'] as int;
+
+          try {
+            // Load complete form with data
+            final form = await DatabaseService.instance.getForm(localFormId);
+            if (form == null) {
+              print('⚠️ Form $localFormId not found');
+              failForms++;
+              continue;
+            }
+
+            // Upload form with the client's firestore_id
+            final formForFirebase = form.copyWith(clientId: clientFirestoreId);
+            final formFirestoreId = await FirestoreService.instance.createForm(formForFirebase);
+
+            // Update local form with firestore_id and mark as synced
+            await DatabaseService.instance.updateFormFirestoreId(localFormId, formFirestoreId);
+
+            print('✅ Form uploaded with Firestore ID: $formFirestoreId');
+            successForms++;
+
+          } catch (e) {
+            print('❌ Failed to upload form $localFormId: $e');
+            failForms++;
+          }
         }
 
-        final firestoreId = result.first['firestore_id'] as String?;
-        if (firestoreId == null || firestoreId.isEmpty) {
-          return;
-        }
-
-        if (operation == 'update') {
-          await FirestoreService.instance.saveFormData(firestoreId, data);
-        }
-        break;
+      } catch (e) {
+        print('❌ Failed to upload client $localClientId: $e');
+        failClients++;
+      }
     }
-  }
 
-  Future<bool> syncFromCloud() async {
-    if (!await isOnline()) return false;
+    // ============================================
+    // STEP 2: Upload unsynced forms for synced clients
+    // ============================================
+    print('📤 Checking for unsynced forms on synced clients...');
 
-    print('Starting two-way sync from cloud...');
+    final syncedClientsWithUnsyncedForms = await db.rawQuery('''
+    SELECT DISTINCT c.id, c.firestore_id
+    FROM clients c
+    INNER JOIN forms f ON c.id = f.client_id
+    WHERE c.needs_sync = 0
+      AND c.firestore_id IS NOT NULL AND c.firestore_id != ''
+      AND f.needs_sync = 1
+  ''');
 
-    try {
-      /// ============================================
-      /// SYNC CLIENTS
-      /// ============================================
-      final cloudClients = await FirestoreService.instance.getAllClients();
+    print('📤 Found ${syncedClientsWithUnsyncedForms.length} synced clients with unsynced forms');
 
-      final localClients = await DatabaseService.instance.getAllClients();
+    for (var row in syncedClientsWithUnsyncedForms) {
+      final localClientId = row['id'] as int;
+      final clientFirestoreId = row['firestore_id'] as String;
 
-      final cloudFirestoreIds = cloudClients.map((c) => c.id!).toSet();
-
-      final localByFirestoreId = <String, Client>{};
-      for (var local in localClients) {
-        final firestoreId = await _getClientFirestoreId(local);
-        if (firestoreId != null) {
-          localByFirestoreId[firestoreId] = local;
-        }
-      }
-
-      bool hasChanges = false;
-
-      for (var cloudClient in cloudClients) {
-
-        if (localByFirestoreId.containsKey(cloudClient.id!)) {
-          continue;
-        }
-
-        bool foundMatch = false;
-        for (var existing in localClients) {
-          final existingFirestoreId = await _getClientFirestoreId(existing);
-          if (existingFirestoreId != null) continue;
-
-          if (_areClientsSame(existing, cloudClient)) {
-            final localId = int.tryParse(existing.id!);
-            if (localId != null) {
-              await DatabaseService.instance.updateClientFirestoreId(localId, cloudClient.id!);
-              hasChanges = true;
-              foundMatch = true;
-              break;
-            }
-          }
-        }
-
-        if (!foundMatch) {
-          await DatabaseService.instance.createClient(cloudClient, firestoreId: cloudClient.id);
-          hasChanges = true;
-        }
-      }
-
-      for (var localClient in localClients) {
-        final firestoreId = await _getClientFirestoreId(localClient);
-
-        if (firestoreId != null && !cloudFirestoreIds.contains(firestoreId)) {
-          final localId = int.tryParse(localClient.id!);
-          if (localId != null) {
-            await DatabaseService.instance.deleteClient(localId);
-            hasChanges = true;
-          }
-        } else if (firestoreId == null) {
-          bool existsInCloud = false;
-          for (var cloudClient in cloudClients) {
-            if (_areClientsSame(localClient, cloudClient)) {
-              existsInCloud = true;
-              final localId = int.tryParse(localClient.id!);
-              if (localId != null) {
-                await DatabaseService.instance.deleteClient(localId);
-                hasChanges = true;
-              }
-              break;
-            }
-          }
-
-          if (!existsInCloud) {
-            final localId = int.tryParse(localClient.id!);
-            if (localId != null) {
-              await DatabaseService.instance.deleteClient(localId);
-              hasChanges = true;
-            }
-          }
-        }
-      }
-
-      /// ============================================
-      /// SYNC FORMS
-      /// ============================================
-      final cloudForms = await FirestoreService.instance.getAllForms();
-
-      final db = await DatabaseService.instance.database;
-      final localFormMaps = await db.query('forms');
-
-      final localFormsByFirestoreId = <String, Map<String, dynamic>>{};
-      for (var formMap in localFormMaps) {
-        final firestoreId = formMap['firestore_id'] as String?;
-        if (firestoreId != null && firestoreId.isNotEmpty) {
-          localFormsByFirestoreId[firestoreId] = formMap;
-        }
-      }
-
-      final cloudFormFirestoreIds = cloudForms.map((f) => f.id!).toSet();
-
-      for (var cloudForm in cloudForms) {
-
-        if (localFormsByFirestoreId.containsKey(cloudForm.id!)) {
-
-          final localFormId = localFormsByFirestoreId[cloudForm.id!]!['id'] as int;
-
-          await db.update(
-            'forms',
-            {
-              'report_number': cloudForm.reportNumber,
-              'updated_at': cloudForm.updatedAt.toIso8601String(),
-            },
-            where: 'id = ?',
-            whereArgs: [localFormId],
-          );
-
-          if (cloudForm.formData.isNotEmpty) {
-            await DatabaseService.instance.saveFormData(localFormId, cloudForm.formData);
-            hasChanges = true;
-          }
-
-          continue;
-        }
-
-        final cloudClientFirestoreId = cloudForm.clientId;
-        final localClientResult = await db.query(
-          'clients',
-          columns: ['id'],
-          where: 'firestore_id = ?',
-          whereArgs: [cloudClientFirestoreId],
-        );
-
-        if (localClientResult.isEmpty) {
-          continue;
-        }
-
-        final localClientId = localClientResult.first['id'] as int;
-
-        final formForLocal = cloudForm.copyWith(clientId: localClientId.toString());
-        final localFormId = await DatabaseService.instance.createForm(
-          formForLocal,
-          firestoreId: cloudForm.id,
-        );
-
-        if (cloudForm.formData.isNotEmpty) {
-          await DatabaseService.instance.saveFormData(localFormId, cloudForm.formData);
-        }
-
-        hasChanges = true;
-      }
-
-      for (var localFormMap in localFormMaps) {
-        final firestoreId = localFormMap['firestore_id'] as String?;
-
-        if (firestoreId != null && !cloudFormFirestoreIds.contains(firestoreId)) {
-          final localId = localFormMap['id'] as int;
-          await DatabaseService.instance.deleteForm(localId);
-          hasChanges = true;
-        }
-      }
-
-      print('Two-way sync completed. Changes made: $hasChanges');
-      return hasChanges;
-    } catch (e) {
-      print('Failed to sync from cloud: $e');
-      return false;
-    }
-  }
-
-  bool _areClientsSame(Client client1, Client client2) {
-    return client1.firstName.trim().toLowerCase() ==
-        client2.firstName.trim().toLowerCase() &&
-        client1.lastName.trim().toLowerCase() ==
-            client2.lastName.trim().toLowerCase() &&
-        client1.email.trim().toLowerCase() ==
-            client2.email.trim().toLowerCase() &&
-        client1.phone.trim() == client2.phone.trim();
-  }
-
-  Future<String?> _getClientFirestoreId(Client client) async {
-    try {
-      final localId = int.tryParse(client.id!);
-      if (localId == null) return null;
-
-      final db = await DatabaseService.instance.database;
-      final result = await db.query(
-          'clients',
-          columns: ['firestore_id'],
-          where: 'id = ?',
-          whereArgs: [localId]
+      // Get all unsynced forms for this client
+      final unsyncedForms = await db.query(
+        'forms',
+        where: 'client_id = ? AND needs_sync = ?',
+        whereArgs: [localClientId, 1],
       );
 
-      if (result.isEmpty) return null;
-      return result.first['firestore_id'] as String?;
+      print('📤 Uploading ${unsyncedForms.length} unsynced forms for client (firestore_id: $clientFirestoreId)...');
+
+      for (var formRow in unsyncedForms) {
+        final localFormId = formRow['id'] as int;
+
+        try {
+          // Load complete form with data
+          final form = await DatabaseService.instance.getForm(localFormId);
+          if (form == null) {
+            print('⚠️ Form $localFormId not found');
+            failForms++;
+            continue;
+          }
+
+          // Upload form with the client's firestore_id
+          final formForFirebase = form.copyWith(clientId: clientFirestoreId);
+          final formFirestoreId = await FirestoreService.instance.createForm(formForFirebase);
+
+          // Update local form with firestore_id and mark as synced
+          await DatabaseService.instance.updateFormFirestoreId(localFormId, formFirestoreId);
+
+          print('✅ Form uploaded with Firestore ID: $formFirestoreId');
+          successForms++;
+
+        } catch (e) {
+          print('❌ Failed to upload form $localFormId: $e');
+          failForms++;
+        }
+      }
+    }
+
+    print('📊 Upload complete: $successClients clients, $successForms forms uploaded');
+
+    return {
+      'successClients': successClients,
+      'failClients': failClients,
+      'successForms': successForms,
+      'failForms': failForms,
+    };
+  }
+
+  /// Manually download all data from cloud (additive only - never deletes local data)
+  Future<Map<String, int>> manualDownloadFromCloud() async {
+    if (!await isOnline()) {
+      throw Exception('No internet connection');
+    }
+
+    int newClients = 0;
+    int newForms = 0;
+
+    print('📥 Starting manual download from cloud...');
+
+    try {
+      // Download all clients from Firestore
+      final cloudClients = await FirestoreService.instance.getAllClients();
+      print('📥 Found ${cloudClients.length} clients in cloud');
+
+      final db = await DatabaseService.instance.database;
+
+      // Get existing firestore_ids from local database
+      final existingFirestoreIds = await db.query(
+        'clients',
+        columns: ['firestore_id'],
+        where: 'firestore_id IS NOT NULL AND firestore_id != ?',
+        whereArgs: [''],
+      );
+
+      final localFirestoreIdSet = existingFirestoreIds
+          .map((row) => row['firestore_id'] as String)
+          .toSet();
+
+      // Add clients that don't exist locally
+      for (var cloudClient in cloudClients) {
+        if (!localFirestoreIdSet.contains(cloudClient.id)) {
+          await DatabaseService.instance.createClient(
+            cloudClient,
+            firestoreId: cloudClient.id,
+          );
+          newClients++;
+          print('✅ Downloaded client: ${cloudClient.name}');
+        }
+      }
+
+      // Download all forms from Firestore
+      final cloudForms = await FirestoreService.instance.getAllForms();
+      print('📥 Found ${cloudForms.length} forms in cloud');
+
+      // Get existing form firestore_ids from local database
+      final existingFormIds = await db.query(
+        'forms',
+        columns: ['firestore_id'],
+        where: 'firestore_id IS NOT NULL AND firestore_id != ?',
+        whereArgs: [''],
+      );
+
+      final localFormIdSet = existingFormIds
+          .map((row) => row['firestore_id'] as String)
+          .toSet();
+
+      // Add forms that don't exist locally
+      for (var cloudForm in cloudForms) {
+        if (!localFormIdSet.contains(cloudForm.id)) {
+          // Find local client by their firestore_id
+          final localClientResult = await db.query(
+            'clients',
+            columns: ['id'],
+            where: 'firestore_id = ?',
+            whereArgs: [cloudForm.clientId],
+          );
+
+          if (localClientResult.isEmpty) {
+            print('⚠️ Client not found for form ${cloudForm.id}');
+            continue;
+          }
+
+          final localClientId = localClientResult.first['id'] as int;
+
+          // Create form with local client_id
+          final formForLocal = cloudForm.copyWith(clientId: localClientId.toString());
+          final localFormId = await DatabaseService.instance.createForm(
+            formForLocal,
+            firestoreId: cloudForm.id,
+          );
+
+          // Save form data if exists
+          if (cloudForm.formData.isNotEmpty) {
+            await DatabaseService.instance.saveFormData(localFormId, cloudForm.formData);
+          }
+
+          newForms++;
+          print('✅ Downloaded form: ${cloudForm.id}');
+        }
+      }
+
+      print('📊 Download complete: $newClients new clients, $newForms new forms');
+
+      return {
+        'newClients': newClients,
+        'newForms': newForms,
+      };
     } catch (e) {
-      print('Error getting Firestore ID: $e');
-      return null;
+      print('❌ Download failed: $e');
+      rethrow;
     }
   }
 }

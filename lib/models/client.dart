@@ -10,6 +10,7 @@ class Client {
   final String holder;
   final DateTime createdAt;
   final DateTime updatedAt;
+  final bool needsSync;
 
   Client({
     this.id,
@@ -23,6 +24,7 @@ class Client {
     required this.holder,
     required this.createdAt,
     required this.updatedAt,
+    this.needsSync = true,
   });
 
   String get name => '$firstName $lastName'.trim();
@@ -55,6 +57,7 @@ class Client {
       holder: map['holder'] ?? '',
       createdAt: DateTime.parse(map['created_at']),
       updatedAt: DateTime.parse(map['updated_at']),
+      needsSync: (map['needs_sync'] ?? 1) == 1,
     );
   }
 
@@ -70,6 +73,7 @@ class Client {
     String? holder,
     DateTime? createdAt,
     DateTime? updatedAt,
+    bool? needsSync,
   }) {
     return Client(
       id: id ?? this.id,
@@ -83,6 +87,7 @@ class Client {
       holder: holder ?? this.holder,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
+      needsSync: needsSync ?? this.needsSync,
     );
   }
 

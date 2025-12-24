@@ -108,39 +108,66 @@ class _ClientCardState extends State<ClientCard>
   }
 
   Widget _buildClientAvatar() {
-    return Container(
-      width: 60,
-      height: 60,
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Theme.of(context).colorScheme.primary,
-            Theme.of(context).colorScheme.secondary,
-          ],
-        ),
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Theme.of(context).colorScheme.primary.withOpacity(0.3),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+    return Stack(
+      children: [
+        Container(
+          width: 60,
+          height: 60,
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Theme.of(context).colorScheme.primary,
+                Theme.of(context).colorScheme.secondary,
+              ],
+            ),
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Theme.of(context).colorScheme.primary.withOpacity(0.3),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
           ),
-        ],
-      ),
-      child: Center(
-        child: Text(
-          widget.client.name.isNotEmpty
-              ? widget.client.name[0].toUpperCase()
-              : '?',
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 24,
-            fontWeight: FontWeight.bold,
+          child: Center(
+            child: Text(
+              widget.client.name.isNotEmpty
+                  ? widget.client.name[0].toUpperCase()
+                  : '?',
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
           ),
         ),
-      ),
+
+        // Blue dot indicator for unsynced clients
+        if (widget.client.needsSync)
+          Positioned(
+            right: 0,
+            top: 0,
+            child: Container(
+              width: 16,
+              height: 16,
+              decoration: BoxDecoration(
+                color: Colors.blue,
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white, width: 2),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.blue.withOpacity(0.5),
+                    blurRadius: 4,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+            ),
+          ),
+      ],
     );
   }
 
@@ -148,13 +175,49 @@ class _ClientCardState extends State<ClientCard>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildHighlightedText(
-          widget.client.name,
-          style: const TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-            color: Colors.black87,
-          ),
+        Row(
+          children: [
+            Expanded(
+              child: _buildHighlightedText(
+                widget.client.name,
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87,
+                ),
+              ),
+            ),
+            // Optional: Add a text badge instead of/in addition to the dot
+            if (widget.client.needsSync)
+              Container(
+                margin: const EdgeInsets.only(left: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.blue.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.blue.withOpacity(0.3)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.cloud_off,
+                      size: 12,
+                      color: Colors.blue.shade700,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      'Local',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.blue.shade700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+          ],
         ),
         const SizedBox(height: 4),
         if (widget.client.address.isNotEmpty) ...[
@@ -281,7 +344,7 @@ class _ClientCardState extends State<ClientCard>
   }
 
   void _navigateToClientDetail() {
-    context.push('/client/${widget.client.id}');
+    context.push('/clients/${widget.client.id}');
   }
 
   void _showClientOptions() {
@@ -396,7 +459,7 @@ class _ClientCardState extends State<ClientCard>
             const Text('Șterge Client'),
           ],
         ),
-        content: Text('Ești sigur că vrei si ștergi "${widget.client.name}"? Această acțiune este ireversibilă.'),
+        content: Text('Ești sigur că vrei să ștergi "${widget.client.name}"? Această acțiune este ireversibilă.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),

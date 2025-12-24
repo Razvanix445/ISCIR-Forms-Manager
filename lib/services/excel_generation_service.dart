@@ -1,7 +1,9 @@
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:excel/excel.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:flutter_file_dialog/flutter_file_dialog.dart';
 import '../models/client.dart';
 import '../models/form.dart';
 import '../services/firestore_service.dart';
@@ -13,6 +15,7 @@ class ExcelGenerationService {
   Future<void> generateClientReport({
     required int year,
     required int trimester,
+    String action = 'download',
   }) async {
     try {
       // print('DEBUG EXCEL: Starting Excel generation for year=$year, trimester=$trimester');
@@ -161,18 +164,58 @@ class ExcelGenerationService {
       final bytes = excel.encode();
       if (bytes == null) throw Exception('Failed to encode Excel file');
 
-      final directory = await getTemporaryDirectory();
       final trimesterName = _getTrimesterName(trimester);
       final fileName = 'Registru_Aparate_${trimesterName}_${year}.xlsx';
-      final filePath = '${directory.path}/$fileName';
 
-      final file = File(filePath);
-      await file.writeAsBytes(bytes);
-
-      await Share.shareXFiles([XFile(filePath)], text: 'Registru Evidență Aparate');
+      if (action == 'share') {
+        // Share using system share dialog
+        await _shareExcel(bytes, fileName);
+      } else {
+        // Save directly to Downloads
+        await _saveExcelToDownloads(bytes, fileName);
+      }
 
     } catch (e) {
       print('Error generating Excel report: $e');
+      rethrow;
+    }
+  }
+
+  /// Share Excel file using system share dialog
+  Future<void> _shareExcel(List<int> excelBytes, String fileName) async {
+    try {
+      final directory = await getTemporaryDirectory();
+      final filePath = '${directory.path}/$fileName';
+      final file = File(filePath);
+      await file.writeAsBytes(excelBytes);
+
+      await Share.shareXFiles([XFile(filePath)], text: 'Registru Evidenta Aparate');
+      print('✅ Excel shared successfully');
+    } catch (e) {
+      print('❌ Error sharing Excel: $e');
+      rethrow;
+    }
+  }
+
+  /// Save Excel file directly to Downloads folder
+  Future<String?> _saveExcelToDownloads(List<int> excelBytes, String fileName) async {
+    try {
+      final params = SaveFileDialogParams(
+        data: Uint8List.fromList(excelBytes),
+        fileName: fileName,
+        mimeTypesFilter: ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
+      );
+
+      final filePath = await FlutterFileDialog.saveFile(params: params);
+
+      if (filePath != null) {
+        print('✅ Excel saved to: $filePath');
+        return filePath;
+      } else {
+        throw Exception('User cancelled save');
+      }
+    } catch (e) {
+      print('❌ Error saving Excel: $e');
       rethrow;
     }
   }

@@ -1,8 +1,11 @@
+import 'dart:io';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:flutter/services.dart';
+import 'package:flutter_file_dialog/flutter_file_dialog.dart';
+import 'package:device_info_plus/device_info_plus.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
@@ -527,8 +530,25 @@ class SimplePdfGenerationService {
       double scaleY,) {
     final signaturesData = formData['page5_signatures'];
 
-    if (signaturesData != null && signaturesData is Map<String, dynamic>) {
-      final utilizatorSignature = signaturesData['semnatura_utilizator'];
+    // Decode JSON string if needed
+    Map<String, dynamic>? signaturesMap;
+    if (signaturesData != null) {
+      if (signaturesData is String) {
+        // New format: JSON string
+        try {
+          signaturesMap = json.decode(signaturesData) as Map<String, dynamic>;
+        } catch (e) {
+          print('Error decoding signatures JSON: $e');
+          return;
+        }
+      } else if (signaturesData is Map<String, dynamic>) {
+        // Old format: direct Map (for backward compatibility)
+        signaturesMap = signaturesData;
+      }
+    }
+
+    if (signaturesMap != null) {
+      final utilizatorSignature = signaturesMap['semnatura_utilizator'];  // Changed
       if (utilizatorSignature != null && utilizatorSignature is String) {
         try {
           final signatureBytes = base64Decode(utilizatorSignature);
@@ -550,7 +570,7 @@ class SimplePdfGenerationService {
         }
       }
 
-      final rslSignature = signaturesData['semnatura_rsl'];
+      final rslSignature = signaturesMap['semnatura_rsl'];  // Changed
       if (rslSignature != null && rslSignature is String &&
           positions.containsKey('semnatura_rsl')) {
         try {
@@ -1375,6 +1395,43 @@ class SimplePdfGenerationService {
       bytes: pdfBytes,
       filename: fileName,
     );
+  }
+
+  /// Save PDF to device's Downloads folder
+  Future<String?> savePdfToDevice(Uint8List pdfBytes, String fileName) async {
+    try {
+      // Save file using flutter_file_dialog
+      // This properly saves to Downloads and makes it visible
+      final params = SaveFileDialogParams(
+        data: pdfBytes,
+        fileName: fileName,
+        mimeTypesFilter: ['application/pdf'],
+      );
+
+      final filePath = await FlutterFileDialog.saveFile(params: params);
+
+      if (filePath != null) {
+        print('✅ PDF saved to: $filePath');
+        return filePath;
+      } else {
+        throw Exception('User cancelled save');
+      }
+    } catch (e) {
+      print('❌ Error saving PDF: $e');
+      rethrow;
+    }
+  }
+
+  /// Get Android SDK version
+  Future<int> _getAndroidVersion() async {
+    if (!Platform.isAndroid) return 0;
+
+    try {
+      final androidInfo = await DeviceInfoPlugin().androidInfo;
+      return androidInfo.version.sdkInt;
+    } catch (e) {
+      return 33; // Default to Android 13+ if can't determine
+    }
   }
 }
 

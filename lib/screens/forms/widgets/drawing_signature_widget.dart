@@ -240,10 +240,39 @@ class _DrawingSignatureFieldState extends State<DrawingSignatureField> {
   void initState() {
     super.initState();
     _currentSignature = widget.existingSignature;
+    print('🔍 DrawingSignatureField initState - signatureKey: ${widget.signatureKey}');
+    print('🔍 existingSignature is null: ${widget.existingSignature == null}');
+    if (widget.existingSignature != null) {
+      print('🔍 existingSignature size: ${widget.existingSignature!.length} bytes');
+    }
+  }
+
+  @override
+  void didUpdateWidget(DrawingSignatureField oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    print('🔍 didUpdateWidget called for key: ${widget.signatureKey}');
+    print('🔍 Old signature null: ${oldWidget.existingSignature == null}');
+    print('🔍 New signature null: ${widget.existingSignature == null}');
+
+    // Always update if the signature changed (null to non-null, or vice versa, or different data)
+    if (widget.existingSignature != oldWidget.existingSignature) {
+      print('🔍 Signature changed! Updating _currentSignature');
+      setState(() {
+        _currentSignature = widget.existingSignature;
+      });
+      if (_currentSignature != null) {
+        print('🔍 New signature size: ${_currentSignature!.length} bytes');
+      }
+    } else {
+      print('🔍 Signature unchanged');
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    print('🔍 Building DrawingSignatureField for ${widget.signatureKey}');
+    print('🔍 _currentSignature is null: ${_currentSignature == null}');
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [

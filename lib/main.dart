@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:iscir_forms_app/screens/forms/form_edit_wrapper.dart';
-import 'package:iscir_forms_app/services/sync_service.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -23,12 +22,6 @@ void main() async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
-
-  SyncService.instance.initialize();
-
-  if (await SyncService.instance.isOnline()) {
-    SyncService.instance.syncToCloud();
-  }
 
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
@@ -79,8 +72,15 @@ class _AppWithRouterState extends State<AppWithRouter> {
   @override
   Widget build(BuildContext context) {
     return MaterialApp.router(
-      title: 'ISCIR Forms Manager',
-      theme: _buildTheme(),
+      title: 'ISCIR Forms',
+      theme: ThemeData(
+        useMaterial3: true,
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: const Color(0xFF2563EB),
+          brightness: Brightness.light,
+        ),
+        fontFamily: 'SF Pro Display',
+      ),
       routerConfig: _router,
       debugShowCheckedModeBanner: false,
     );
@@ -88,24 +88,23 @@ class _AppWithRouterState extends State<AppWithRouter> {
 
   GoRouter _createRouter(MyAuthProvider authProvider) {
     return GoRouter(
+      initialLocation: '/clients',
       redirect: (context, state) {
-        final isAuthenticated = authProvider.isAuthenticated;
-        final isAuthRoute = state.matchedLocation == '/login' ||
+        final isLoggedIn = authProvider.isAuthenticated;
+        final isLoggingIn = state.matchedLocation == '/login' ||
             state.matchedLocation == '/signup';
 
-        if (!isAuthenticated && !isAuthRoute) {
+        if (!isLoggedIn && !isLoggingIn) {
           return '/login';
         }
 
-        if (isAuthenticated && isAuthRoute) {
-          return '/';
+        if (isLoggedIn && isLoggingIn) {
+          return '/clients';
         }
 
         return null;
       },
-
       refreshListenable: authProvider,
-
       routes: [
         GoRoute(
           path: '/login',
@@ -116,136 +115,44 @@ class _AppWithRouterState extends State<AppWithRouter> {
           builder: (context, state) => const SignUpScreen(),
         ),
         GoRoute(
-          path: '/',
+          path: '/clients',
           builder: (context, state) => const ClientsScreen(),
         ),
         GoRoute(
-          path: '/client/:clientId',
+          path: '/clients/:id',
           builder: (context, state) {
-            final clientId = state.pathParameters['clientId']!;
-            return ClientDetailScreen(clientId: clientId);
+            final id = state.pathParameters['id']!;
+            return ClientDetailScreen(clientId: id);
           },
         ),
         GoRoute(
-          path: '/form/:formId/edit',
+          path: '/clients/:clientId/forms/:formId/edit',
           builder: (context, state) {
+            final clientId = state.pathParameters['clientId']!;
             final formId = state.pathParameters['formId']!;
-            return FormEditWrapper(formId: formId);
+            return FormEditWrapper(formId: formId,);
           },
         ),
       ],
-    );
-  }
-
-  ThemeData _buildTheme() {
-    const primaryColor = Color(0xFF6366F1);
-    const secondaryColor = Color(0xFF8B5CF6);
-    const accentColor = Color(0xFF06B6D4);
-    const errorColor = Color(0xFFEF4444);
-
-    return ThemeData(
-      useMaterial3: true,
-      fontFamily: 'NotoSans',
-
-      colorScheme: ColorScheme.fromSeed(
-        seedColor: primaryColor,
-        brightness: Brightness.light,
-        primary: primaryColor,
-        secondary: secondaryColor,
-        tertiary: accentColor,
-        surface: Colors.white,
-        background: const Color(0xFFF8FAFC),
-        error: errorColor,
-      ),
-
-      appBarTheme: const AppBarTheme(
-        elevation: 0,
-        backgroundColor: Colors.transparent,
-        foregroundColor: Colors.black87,
-        titleTextStyle: TextStyle(
-          color: Colors.black87,
-          fontSize: 20,
-          fontWeight: FontWeight.w600,
-          fontFamily: 'NotoSans',
-        ),
-      ),
-
-      cardTheme: CardTheme(
-        elevation: 8,
-        shadowColor: primaryColor.withOpacity(0.1),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
-        color: Colors.white,
-        surfaceTintColor: Colors.transparent,
-      ),
-
-      elevatedButtonTheme: ElevatedButtonThemeData(
-        style: ElevatedButton.styleFrom(
-          elevation: 8,
-          shadowColor: primaryColor.withOpacity(0.3),
-          backgroundColor: primaryColor,
-          foregroundColor: Colors.white,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-          textStyle: const TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-      ),
-
-      inputDecorationTheme: InputDecorationTheme(
-        filled: true,
-        fillColor: Colors.grey.shade50,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Colors.grey.shade300),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Colors.grey.shade300),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: primaryColor, width: 2),
-        ),
-        errorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: errorColor),
-        ),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-      ),
     );
   }
 }
 
 class GradientBackground extends StatelessWidget {
   final Widget child;
-  final List<Color>? colors;
-  final AlignmentGeometry begin;
-  final AlignmentGeometry end;
 
-  const GradientBackground({
-    super.key,
-    required this.child,
-    this.colors,
-    this.begin = Alignment.topLeft,
-    this.end = Alignment.bottomRight,
-  });
+  const GradientBackground({super.key, required this.child});
 
   @override
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          begin: begin,
-          end: end,
-          colors: colors ?? [
-            const Color(0xFFF8FAFC),
-            const Color(0xFFE2E8F0),
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Theme.of(context).colorScheme.primary.withOpacity(0.05),
+            Theme.of(context).colorScheme.secondary.withOpacity(0.05),
           ],
         ),
       ),
@@ -256,26 +163,30 @@ class GradientBackground extends StatelessWidget {
 
 class ModernHeader extends StatelessWidget {
   final String title;
-  final String? subtitle;
+  final String subtitle;
   final List<Widget>? actions;
-  final VoidCallback? onBackPressed;
-  final bool showBackButton;
-  final Widget? leading;
+  final bool showBackButton; // New parameter to control back button
 
   const ModernHeader({
     super.key,
     required this.title,
-    this.subtitle,
+    required this.subtitle,
     this.actions,
-    this.onBackPressed,
-    this.showBackButton = true,
-    this.leading,
+    this.showBackButton = true, // Default to true - show back button automatically
   });
 
   @override
   Widget build(BuildContext context) {
+    // Check if we CAN go back
+    final canPop = GoRouter.of(context).canPop();
+
     return Container(
-      padding: const EdgeInsets.fromLTRB(20, 10, 20, 10),
+      padding: EdgeInsets.only(
+        top: MediaQuery.of(context).padding.top + 20,
+        left: 20,
+        right: 20,
+        bottom: 20,
+      ),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
@@ -285,75 +196,56 @@ class ModernHeader extends StatelessWidget {
             Theme.of(context).colorScheme.secondary,
           ],
         ),
-        borderRadius: const BorderRadius.only(
-          bottomLeft: Radius.circular(30),
-          bottomRight: Radius.circular(30),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Theme.of(context).colorScheme.primary.withOpacity(0.3),
-            blurRadius: 20,
-            offset: const Offset(0, 10),
-          ),
-        ],
       ),
-      child: SafeArea(
-        bottom: false,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                if (showBackButton)
-                  Container(
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.2),
-                      borderRadius: BorderRadius.circular(12),
+      child: Row(
+        children: [
+          // Back button - only show if we can go back AND showBackButton is true
+          if (canPop && showBackButton)
+            Padding(
+              padding: const EdgeInsets.only(right: 12),
+              child: Material(
+                color: Colors.white.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(12),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(12),
+                  onTap: () => context.pop(),
+                  child: Container(
+                    padding: const EdgeInsets.all(12),
+                    child: const Icon(
+                      Icons.arrow_back,
+                      color: Colors.white,
+                      size: 24,
                     ),
-                    child: IconButton(
-                      onPressed: onBackPressed ?? () => Navigator.of(context).pop(),
-                      icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white),
-                      style: IconButton.styleFrom(
-                        padding: const EdgeInsets.all(12),
-                      ),
-                    ),
-                  )
-                else if (leading != null)
-                  leading!,
-
-                const SizedBox(width: 16),
-
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        title,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      if (subtitle != null) ...[
-                        const SizedBox(height: 4),
-                        Text(
-                          subtitle!,
-                          style: TextStyle(
-                            color: Colors.white.withOpacity(0.9),
-                            fontSize: 14,
-                          ),
-                        ),
-                      ],
-                    ],
                   ),
                 ),
+              ),
+            ),
 
-                if (actions != null) ...actions!,
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 28,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  subtitle,
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.9),
+                    fontSize: 14,
+                  ),
+                ),
               ],
             ),
-          ],
-        ),
+          ),
+          if (actions != null) ...actions!,
+        ],
       ),
     );
   }

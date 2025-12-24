@@ -7,7 +7,7 @@ import '../../providers/auth_provider.dart';
 import '../../models/client.dart';
 import '../../services/database_service.dart';
 import '../../services/excel_generation_service.dart';
-import '../../services/firestore_service.dart';
+import '../../services/sync_service.dart';
 import '../excel/trimester_selection_dialog.dart';
 import '../forms/widgets/client_card.dart';
 import 'add_edit_client_screen.dart';
@@ -77,57 +77,12 @@ class _ClientsScreenState extends State<ClientsScreen> with TickerProviderStateM
       final address = client.address.toLowerCase();
       final phone = client.phone.toLowerCase();
       final holder = client.holder.toLowerCase();
-
       return name.contains(_searchQuery) ||
           email.contains(_searchQuery) ||
           address.contains(_searchQuery) ||
           phone.contains(_searchQuery) ||
           holder.contains(_searchQuery);
     }).toList();
-  }
-
-  void _showUserMenu() {
-    final authProvider = context.read<MyAuthProvider>();
-
-    showModalBottomSheet(
-      context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (context) =>
-          Container(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                ListTile(
-                  leading: CircleAvatar(
-                    backgroundColor: Theme
-                        .of(context)
-                        .colorScheme
-                        .primary,
-                    child: Text(
-                      authProvider.userDisplayName[0].toUpperCase(),
-                      style: const TextStyle(color: Colors.white),
-                    ),
-                  ),
-                  title: Text(authProvider.userDisplayName),
-                  subtitle: Text(authProvider.user?.email ?? ''),
-                ),
-                const Divider(),
-                ListTile(
-                  leading: const Icon(Icons.logout, color: Colors.red),
-                  title: const Text(
-                      'Ieși din cont', style: TextStyle(color: Colors.red)),
-                  onTap: () async {
-                    Navigator.pop(context);
-                    await authProvider.signOut();
-                  },
-                ),
-              ],
-            ),
-          ),
-    );
   }
 
   @override
@@ -138,112 +93,52 @@ class _ClientsScreenState extends State<ClientsScreen> with TickerProviderStateM
         child: Column(
           children: [
             ModernHeader(
-              title: 'Formulare ISCIR',
-              subtitle: 'Gestionează-ți clienții și completează rapoarte',
-              showBackButton: false,
-              leading: Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Icon(
-                  Icons.engineering,
-                  color: Colors.white,
-                  size: 24,
-                ),
-              ),
+              title: 'Clienți',
+              subtitle: 'Gestionează clienții și formularele',
               actions: [
-                /// Excel export button
-                Container(
-                  margin: const EdgeInsets.only(right: 8),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: IconButton(
-                    icon: const Icon(
-                      Icons.table_chart,
-                      color: Colors.white,
-                    ),
-                    onPressed: () => _generateExcelReport(context),
-                    tooltip: 'Generează registru Excel',
-                  ),
+                IconButton(
+                  icon: const Icon(Icons.table_chart, color: Colors.white),
+                  onPressed: () => _generateExcelReport(context),
+                  tooltip: 'Generează Raport Excel',
                 ),
-
-                /// User menu button
-                Container(
-                  margin: const EdgeInsets.only(right: 8),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Consumer<MyAuthProvider>(
-                    builder: (context, authProvider, _) {
-                      return IconButton(
-                        onPressed: _showUserMenu,
-                        icon: CircleAvatar(
-                          backgroundColor: Colors.white,
-                          child: Text(
-                            authProvider.userDisplayName[0].toUpperCase(),
-                            style: TextStyle(
-                              color: Theme
-                                  .of(context)
-                                  .colorScheme
-                                  .primary,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                        tooltip: 'Meniu Utilizator',
-                      );
-                    },
-                  ),
+                IconButton(
+                  icon: const Icon(Icons.logout, color: Colors.white),
+                  onPressed: () async {
+                    await context.read<MyAuthProvider>().signOut();
+                    if (mounted) {
+                      context.go('/login');
+                    }
+                  },
+                  tooltip: 'Deconectare',
                 ),
               ],
             ),
-
+            _buildSearchSection(),
             Expanded(
               child: FadeTransition(
                 opacity: _fadeAnimation,
-                child: Column(
-                  children: [
-                    _buildSearchSection(),
-                    Expanded(
-                      child: Container(
-                        margin: const EdgeInsets.only(top: 10),
-                        child: Consumer<ClientProvider>(
-                          builder: (context, clientProvider, child) {
-                            if (clientProvider.isLoading) {
-                              return _buildLoadingState();
-                            }
+                child: Consumer<ClientProvider>(
+                  builder: (context, clientProvider, child) {
+                    if (clientProvider.isLoading) {
+                      return _buildLoadingState();
+                    }
 
-                            if (clientProvider.error != null) {
-                              return _buildErrorState(clientProvider);
-                            }
+                    if (clientProvider.error != null) {
+                      return _buildErrorState(clientProvider);
+                    }
 
-                            // Use search results when searching, recent clients otherwise
-                            final allClients = _searchQuery.isNotEmpty
-                                ? clientProvider.searchResults
-                                : clientProvider.recentClients;
+                    final clients = _searchQuery.isEmpty
+                        ? clientProvider.recentClients
+                        : clientProvider.searchResults;
 
-                            // Remove local filtering since search is handled by provider
-                            final filteredClients = allClients;
+                    if (clients.isEmpty) {
+                      return _searchQuery.isEmpty
+                          ? _buildEmptyState()
+                          : _buildNoResultsState();
+                    }
 
-                            if (allClients.isEmpty && _searchQuery.isEmpty) {
-                              return _buildEmptyState();
-                            }
-
-                            if (filteredClients.isEmpty && _searchQuery.isNotEmpty) {
-                              return _buildNoSearchResultsState();
-                            }
-
-                            return _buildClientsList(filteredClients);
-                          },
-                        ),
-                      ),
-                    ),
-                  ],
+                    return _buildClientsList(clients);
+                  },
                 ),
               ),
             ),
@@ -259,42 +154,17 @@ class _ClientsScreenState extends State<ClientsScreen> with TickerProviderStateM
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(20),
-              boxShadow: [
-                BoxShadow(
-                  color: Theme
-                      .of(context)
-                      .colorScheme
-                      .primary
-                      .withOpacity(0.1),
-                  blurRadius: 20,
-                  offset: const Offset(0, 10),
-                ),
-              ],
+          CircularProgressIndicator(
+            valueColor: AlwaysStoppedAnimation<Color>(
+              Theme.of(context).colorScheme.primary,
             ),
-            child: Column(
-              children: [
-                CircularProgressIndicator(
-                  valueColor: AlwaysStoppedAnimation<Color>(
-                    Theme
-                        .of(context)
-                        .colorScheme
-                        .primary,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                const Text(
-                  'Se încarcă clienții...',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ],
+          ),
+          const SizedBox(height: 20),
+          Text(
+            'Se încarcă clienții...',
+            style: TextStyle(
+              fontSize: 16,
+              color: Colors.grey.shade600,
             ),
           ),
         ],
@@ -354,7 +224,7 @@ class _ClientsScreenState extends State<ClientsScreen> with TickerProviderStateM
                 clientProvider.loadClients();
               },
               icon: const Icon(Icons.refresh),
-              label: const Text('Reîncearcă'),
+              label: const Text('Încearcă'),
             ),
           ],
         ),
@@ -372,11 +242,7 @@ class _ClientsScreenState extends State<ClientsScreen> with TickerProviderStateM
           borderRadius: BorderRadius.circular(20),
           boxShadow: [
             BoxShadow(
-              color: Theme
-                  .of(context)
-                  .colorScheme
-                  .primary
-                  .withOpacity(0.1),
+              color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
               blurRadius: 20,
               offset: const Offset(0, 10),
             ),
@@ -390,16 +256,8 @@ class _ClientsScreenState extends State<ClientsScreen> with TickerProviderStateM
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   colors: [
-                    Theme
-                        .of(context)
-                        .colorScheme
-                        .primary
-                        .withOpacity(0.1),
-                    Theme
-                        .of(context)
-                        .colorScheme
-                        .secondary
-                        .withOpacity(0.1),
+                    Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                    Theme.of(context).colorScheme.secondary.withOpacity(0.1),
                   ],
                 ),
                 borderRadius: BorderRadius.circular(60),
@@ -407,10 +265,7 @@ class _ClientsScreenState extends State<ClientsScreen> with TickerProviderStateM
               child: Icon(
                 Icons.people_outline,
                 size: 64,
-                color: Theme
-                    .of(context)
-                    .colorScheme
-                    .primary,
+                color: Theme.of(context).colorScheme.primary,
               ),
             ),
             const SizedBox(height: 24),
@@ -436,108 +291,7 @@ class _ClientsScreenState extends State<ClientsScreen> with TickerProviderStateM
     );
   }
 
-  Widget _buildSearchSection() {
-    return TweenAnimationBuilder<double>(
-      duration: const Duration(milliseconds: 600),
-      tween: Tween(begin: 0.0, end: 1.0),
-      builder: (context, value, child) {
-        return Transform.translate(
-          offset: Offset(0, 30 * (1 - value)),
-          child: Opacity(
-            opacity: value,
-            child: Container(
-              margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(20),
-                boxShadow: [
-                  BoxShadow(
-                    color: Theme
-                        .of(context)
-                        .colorScheme
-                        .primary
-                        .withOpacity(0.1),
-                    blurRadius: 20,
-                    offset: const Offset(0, 8),
-                  ),
-                ],
-              ),
-              child: TextField(
-                controller: _searchController,
-                decoration: InputDecoration(
-                  hintText: 'Caută clienți...',
-                  hintStyle: TextStyle(
-                    color: Colors.grey.shade500,
-                    fontSize: 16,
-                  ),
-                  prefixIcon: Container(
-                    margin: const EdgeInsets.all(12),
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          Theme
-                              .of(context)
-                              .colorScheme
-                              .primary
-                              .withOpacity(0.1),
-                          Theme
-                              .of(context)
-                              .colorScheme
-                              .secondary
-                              .withOpacity(0.1),
-                        ],
-                      ),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Icon(
-                      Icons.search,
-                      color: Theme
-                          .of(context)
-                          .colorScheme
-                          .primary,
-                      size: 20,
-                    ),
-                  ),
-                  suffixIcon: _searchQuery.isNotEmpty
-                      ? Container(
-                    margin: const EdgeInsets.all(12),
-                    child: IconButton(
-                      onPressed: () {
-                        _searchController.clear();
-                        _onSearchChanged();
-                      },
-                      icon: Icon(
-                        Icons.clear,
-                        color: Colors.grey.shade400,
-                        size: 20,
-                      ),
-                      style: IconButton.styleFrom(
-                        padding: EdgeInsets.zero,
-                        minimumSize: const Size(24, 24),
-                      ),
-                    ),
-                  )
-                      : null,
-                  border: InputBorder.none,
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 20,
-                    vertical: 16,
-                  ),
-                ),
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildNoSearchResultsState() {
+  Widget _buildNoResultsState() {
     return Center(
       child: Container(
         margin: const EdgeInsets.all(20),
@@ -547,11 +301,7 @@ class _ClientsScreenState extends State<ClientsScreen> with TickerProviderStateM
           borderRadius: BorderRadius.circular(20),
           boxShadow: [
             BoxShadow(
-              color: Theme
-                  .of(context)
-                  .colorScheme
-                  .primary
-                  .withOpacity(0.1),
+              color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
               blurRadius: 20,
               offset: const Offset(0, 10),
             ),
@@ -618,6 +368,55 @@ class _ClientsScreenState extends State<ClientsScreen> with TickerProviderStateM
     );
   }
 
+  Widget _buildSearchSection() {
+    return TweenAnimationBuilder<double>(
+      duration: const Duration(milliseconds: 600),
+      tween: Tween(begin: 0.0, end: 1.0),
+      builder: (context, value, child) {
+        return Transform.translate(
+          offset: Offset(0, 30 * (1 - value)),
+          child: Opacity(
+            opacity: value,
+            child: Container(
+              margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.05),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: TextField(
+                controller: _searchController,
+                decoration: InputDecoration(
+                  hintText: 'Caută client (nume, email, telefon, adresă)...',
+                  hintStyle: TextStyle(color: Colors.grey.shade400),
+                  prefixIcon: Icon(Icons.search, color: Colors.grey.shade400),
+                  suffixIcon: _searchQuery.isNotEmpty
+                      ? IconButton(
+                    icon: Icon(Icons.clear, color: Colors.grey.shade400),
+                    onPressed: () {
+                      _searchController.clear();
+                      _onSearchChanged();
+                    },
+                  )
+                      : null,
+                  border: InputBorder.none,
+                  contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   Widget _buildClientsList(List<Client> clients) {
     return ListView.builder(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
@@ -644,157 +443,27 @@ class _ClientsScreenState extends State<ClientsScreen> with TickerProviderStateM
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
+        // DOWNLOAD button (pulls from cloud)
         FloatingActionButton(
-          onPressed: () async {
-            final db = await DatabaseService.instance.database;
-
-            final unsynced = await db.query('forms', where: 'firestore_id IS NULL');
-
-            if (unsynced.isEmpty) {
-              showDialog(
-                context: context,
-                builder: (context) => AlertDialog(
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                  title: Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: Colors.green.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Icon(Icons.check_circle, color: Colors.green),
-                      ),
-                      SizedBox(width: 12),
-                      Text('Sincronizare'),
-                    ],
-                  ),
-                  content: Text('Nu există formulare nesincronizate'),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(context),
-                      child: Text('OK'),
-                    ),
-                  ],
-                ),
-              );
-              return;
-            }
-
-            print('Found ${unsynced.length} unsynced forms');
-            int successCount = 0;
-            int failCount = 0;
-
-            for (var formData in unsynced) {
-              final formId = formData['id'] as int;
-              print('Manually syncing form $formId...');
-
-              final form = await DatabaseService.instance.getForm(formId);
-              if (form == null) {
-                failCount++;
-                continue;
-              }
-
-              final localClientId = int.tryParse(form.clientId);
-              if (localClientId == null) {
-                failCount++;
-                continue;
-              }
-
-              final clientResult = await db.query(
-                'clients',
-                columns: ['firestore_id'],
-                where: 'id = ?',
-                whereArgs: [localClientId],
-              );
-
-              if (clientResult.isEmpty) {
-                print('Client $localClientId not found');
-                failCount++;
-                continue;
-              }
-
-              final clientFirestoreId = clientResult.first['firestore_id'] as String?;
-              if (clientFirestoreId == null) {
-                print('Client has no firestore_id yet');
-                failCount++;
-                continue;
-              }
-
-              try {
-                final formForFirebase = form.copyWith(clientId: clientFirestoreId);
-                final firestoreId = await FirestoreService.instance.createForm(formForFirebase);
-                await DatabaseService.instance.updateFormFirestoreId(formId, firestoreId);
-                print('✅ Form $formId synced with ID $firestoreId');
-                successCount++;
-              } catch (e) {
-                print('❌ Failed: $e');
-                failCount++;
-              }
-            }
-
-            showDialog(
-              context: context,
-              builder: (context) => AlertDialog(
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                title: Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: (successCount > 0 && failCount == 0 ? Colors.green : Colors.orange).withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Icon(
-                        successCount > 0 && failCount == 0 ? Icons.check_circle : Icons.info,
-                        color: successCount > 0 && failCount == 0 ? Colors.green : Colors.orange,
-                      ),
-                    ),
-                    SizedBox(width: 12),
-                    Text('Rezultat Sincronizare'),
-                  ],
-                ),
-                content: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Icon(Icons.check_circle, color: Colors.green, size: 20),
-                        SizedBox(width: 8),
-                        Text(
-                          'Sincronizate cu succes: $successCount',
-                          style: TextStyle(fontSize: 16),
-                        ),
-                      ],
-                    ),
-                    SizedBox(height: 8),
-                    Row(
-                      children: [
-                        Icon(Icons.error, color: Colors.red, size: 20),
-                        SizedBox(width: 8),
-                        Text(
-                          'Eșuate: $failCount',
-                          style: TextStyle(fontSize: 16),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-                actions: [
-                  TextButton(
-                    onPressed: () => Navigator.pop(context),
-                    child: Text('OK'),
-                  ),
-                ],
-              ),
-            );
-          },
-          heroTag: 'sync',
+          onPressed: _downloadFromCloud,
+          heroTag: 'download',
           backgroundColor: Colors.white,
-          child: Icon(Icons.cloud_upload, color: Theme.of(context).colorScheme.primary),
+          child: Icon(Icons.cloud_download, color: Colors.blue),
+          tooltip: 'Descarcă din Cloud',
         ),
-        SizedBox(height: 16),
+        const SizedBox(height: 12),
+
+        // UPLOAD button (pushes to cloud)
+        FloatingActionButton(
+          onPressed: _uploadToCloud,
+          heroTag: 'upload',
+          backgroundColor: Colors.white,
+          child: Icon(Icons.cloud_upload, color: Colors.orange),
+          tooltip: 'Încarcă în Cloud',
+        ),
+        const SizedBox(height: 16),
+
+        // ADD CLIENT button
         Container(
           decoration: BoxDecoration(
             gradient: LinearGradient(
@@ -815,8 +484,8 @@ class _ClientsScreenState extends State<ClientsScreen> with TickerProviderStateM
           child: FloatingActionButton(
             onPressed: _addNewClient,
             heroTag: 'add',
-            backgroundColor: Colors.blue,
-            elevation: 2,
+            backgroundColor: Colors.transparent,
+            elevation: 0,
             child: const Icon(Icons.add, color: Colors.white),
           ),
         ),
@@ -827,8 +496,8 @@ class _ClientsScreenState extends State<ClientsScreen> with TickerProviderStateM
   void _addNewClient() async {
     final result = await Navigator.of(context).push<bool>(
       PageRouteBuilder(
-        pageBuilder: (context, animation,
-            secondaryAnimation) => const AddEditClientScreen(),
+        pageBuilder: (context, animation, secondaryAnimation) =>
+        const AddEditClientScreen(),
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
           return SlideTransition(
             position: animation.drive(
@@ -846,179 +515,649 @@ class _ClientsScreenState extends State<ClientsScreen> with TickerProviderStateM
     }
   }
 
-  Future<void> _generateExcelReport(BuildContext context) async {
-    try {
-      final selection = await showDialog<Map<String, int>>(
+  Future<void> _uploadToCloud() async {
+    // Check if online first
+    if (!await SyncService.instance.isOnline()) {
+      if (!mounted) return;
+      showDialog(
         context: context,
-        builder: (context) => const TrimesterSelectionDialog(),
+        builder: (context) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.orange.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.wifi_off, color: Colors.orange),
+              ),
+              const SizedBox(width: 12),
+              const Text('Fără Internet'),
+            ],
+          ),
+          content: const Text('Nu există conexiune la internet. Conectează-te și încearcă din nou.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
+    // Get unsynced summary
+    try {
+      final summary = await SyncService.instance.getUnsyncedSummary();
+      final clients = summary['clients'] as List<Map<String, dynamic>>;
+      final totalClients = summary['totalClients'] as int;
+      final totalForms = summary['totalForms'] as int;
+
+      if (!mounted) return;
+
+      // If nothing to upload
+      if (totalClients == 0) {
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            title: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.green.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(Icons.check_circle, color: Colors.green),
+                ),
+                const SizedBox(width: 12),
+                const Text('Totul Sincronizat'),
+              ],
+            ),
+            content: const Text('Nu există clienți sau formulare nesincronizate.'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('OK'),
+              ),
+            ],
+          ),
+        );
+        return;
+      }
+
+      // Show confirmation dialog
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.orange.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.cloud_upload, color: Colors.orange),
+              ),
+              const SizedBox(width: 12),
+              const Text('Încarcă în Cloud'),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Găsit $totalClients ${totalClients == 1 ? 'client' : 'clienți'} nesincronizat${totalClients == 1 ? '' : 'i'}:',
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 12),
+              Container(
+                constraints: const BoxConstraints(maxHeight: 200),
+                child: SingleChildScrollView(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: clients.map((client) {
+                      final name = client['name'] as String;
+                      final formCount = client['formCount'] as int;
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 4),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.person, size: 16, color: Colors.blue),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                '$name ($formCount ${formCount == 1 ? 'formular' : 'formulare'})',
+                                style: const TextStyle(fontSize: 14),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.blue.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.info_outline, color: Colors.blue, size: 20),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Total: $totalClients ${totalClients == 1 ? 'client' : 'clienți'}, $totalForms ${totalForms == 1 ? 'formular' : 'formulare'}',
+                        style: const TextStyle(fontSize: 14, color: Colors.blue),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Anulează'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context, true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.orange,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Încarcă'),
+            ),
+          ],
+        ),
       );
 
-      if (selection == null) return;
+      if (confirmed != true || !mounted) return;
 
-      final year = selection['year']!;
-      final trimester = selection['trimester']!;
-
+      // Show progress dialog
       showDialog(
         context: context,
         barrierDismissible: false,
-        builder: (context) => Center(
-          child: Container(
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(20),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.green.withOpacity(0.1),
-                  blurRadius: 20,
-                  offset: const Offset(0, 10),
-                ),
-              ],
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                CircularProgressIndicator(
-                  valueColor: AlwaysStoppedAnimation<Color>(Colors.green),
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  'Se generează registrul pentru\nTrimestrul $trimester, $year...',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ],
-            ),
+        builder: (context) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation<Color>(Colors.orange),
+              ),
+              const SizedBox(height: 20),
+              const Text(
+                'Se încarcă datele în cloud...',
+                style: TextStyle(fontSize: 16),
+              ),
+            ],
           ),
         ),
       );
 
+      // Perform upload
+      final results = await SyncService.instance.manualUploadToCloud();
+
+      if (!mounted) return;
+      Navigator.pop(context); // Close progress dialog
+
+      // Show results dialog
+      final successClients = results['successClients'] ?? 0;
+      final failClients = results['failClients'] ?? 0;
+      final successForms = results['successForms'] ?? 0;
+      final failForms = results['failForms'] ?? 0;
+      final allSuccess = failClients == 0 && failForms == 0;
+
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: (allSuccess ? Colors.green : Colors.orange).withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(
+                  allSuccess ? Icons.check_circle : Icons.info,
+                  color: allSuccess ? Colors.green : Colors.orange,
+                ),
+              ),
+              const SizedBox(width: 12),
+              const Text('Rezultat Încărcare'),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.check_circle, color: Colors.green, size: 20),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Clienți sincronizați: $successClients',
+                      style: const TextStyle(fontSize: 16),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  const Icon(Icons.check_circle, color: Colors.green, size: 20),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Formulare sincronizate: $successForms',
+                      style: const TextStyle(fontSize: 16),
+                    ),
+                  ),
+                ],
+              ),
+              if (failClients > 0 || failForms > 0) ...[
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    const Icon(Icons.error, color: Colors.red, size: 20),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Eșuate: $failClients clienți, $failForms formulare',
+                        style: const TextStyle(fontSize: 16, color: Colors.red),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context);
+                // Refresh client list to update UI
+                context.read<ClientProvider>().loadClients();
+              },
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.red.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.error, color: Colors.red),
+              ),
+              const SizedBox(width: 12),
+              const Text('Eroare'),
+            ],
+          ),
+          content: Text('A apărut o eroare la încărcare: $e'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+    }
+  }
+
+  Future<void> _downloadFromCloud() async {
+    // Check if online first
+    if (!await SyncService.instance.isOnline()) {
+      if (!mounted) return;
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.orange.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.wifi_off, color: Colors.orange),
+              ),
+              const SizedBox(width: 12),
+              const Text('Fără Internet'),
+            ],
+          ),
+          content: const Text('Nu există conexiune la internet. Conectează-te și încearcă din nou.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
+    // Show confirmation
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.blue.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(Icons.cloud_download, color: Colors.blue),
+            ),
+            const SizedBox(width: 12),
+            const Text('Descarcă din Cloud'),
+          ],
+        ),
+        content: const Text(
+          'Aceasta va descărca toți clienții și formularele din cloud care nu există deja local.\n\nDatele locale existente nu vor fi șterse.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Anulează'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.blue,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Descarcă'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    // Show progress dialog
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CircularProgressIndicator(
+              valueColor: AlwaysStoppedAnimation<Color>(Colors.blue),
+            ),
+            const SizedBox(height: 20),
+            const Text(
+              'Se descarcă datele din cloud...',
+              style: TextStyle(fontSize: 16),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    try {
+      // Perform download
+      final results = await SyncService.instance.manualDownloadFromCloud();
+
+      if (!mounted) return;
+      Navigator.pop(context); // Close progress dialog
+
+      final newClients = results['newClients'] ?? 0;
+      final newForms = results['newForms'] ?? 0;
+
+      // Show results dialog
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.green.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.check_circle, color: Colors.green),
+              ),
+              const SizedBox(width: 12),
+              const Text('Descărcare Completă'),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.person_add, color: Colors.blue, size: 20),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Clienți noi: $newClients',
+                      style: const TextStyle(fontSize: 16),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  const Icon(Icons.description, color: Colors.blue, size: 20),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Formulare noi: $newForms',
+                      style: const TextStyle(fontSize: 16),
+                    ),
+                  ),
+                ],
+              ),
+              if (newClients == 0 && newForms == 0) ...[
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.green.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Row(
+                    children: [
+                      Icon(Icons.check, color: Colors.green, size: 20),
+                      SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Toate datele sunt deja sincronizate!',
+                          style: TextStyle(fontSize: 14, color: Colors.green),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context);
+                // Refresh client list to show new data
+                context.read<ClientProvider>().loadClients();
+              },
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      Navigator.pop(context); // Close progress dialog
+
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.red.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.error, color: Colors.red),
+              ),
+              const SizedBox(width: 12),
+              const Text('Eroare'),
+            ],
+          ),
+          content: Text('A apărut o eroare la descărcare: $e'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+    }
+  }
+
+  Future<void> _generateExcelReport(BuildContext context) async {
+    try {
+      final result = await showDialog<Map<String, dynamic>>(
+        context: context,
+        builder: (context) => const TrimesterSelectionDialog(),
+      );
+
+      if (result == null) return;
+
+      // Get year, trimester, and action from dialog
+      final year = result['year'] as int;
+      final trimester = result['trimester'] as int;
+      final action = result['action'] as String? ?? 'download';
+
+      if (!mounted) return;
+
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation<Color>(
+                  Theme.of(context).colorScheme.primary,
+                ),
+              ),
+              const SizedBox(height: 20),
+              const Text('Se generează raportul Excel...'),
+            ],
+          ),
+        ),
+      );
+
+      // Use year and trimester directly
       await ExcelGenerationService.instance.generateClientReport(
         year: year,
         trimester: trimester,
+        action: action,  // Pass the action
       );
 
+      if (!mounted) return;
       Navigator.pop(context);
 
+      // // Show appropriate success message
+      // ScaffoldMessenger.of(context).showSnackBar(
+      //   SnackBar(
+      //     content: Column(
+      //       mainAxisSize: MainAxisSize.min,
+      //       crossAxisAlignment: CrossAxisAlignment.start,
+      //       children: [
+      //         Row(
+      //           children: [
+      //             const Icon(Icons.check_circle, color: Colors.white),
+      //             const SizedBox(width: 12),
+      //             Expanded(
+      //               child: Text(
+      //                 action == 'share'
+      //                     ? 'Raportul Excel a fost partajat cu succes!'
+      //                     : 'Raportul Excel a fost salvat cu succes!',
+      //               ),
+      //             ),
+      //           ],
+      //         ),
+      //         if (action == 'download') ...[
+      //           const SizedBox(height: 4),
+      //           Text(
+      //             'Gaseste-l in folderul Downloads',
+      //             style: TextStyle(fontSize: 12, color: Colors.white.withOpacity(0.9)),
+      //           ),
+      //         ],
+      //       ],
+      //     ),
+      //     backgroundColor: Colors.green,
+      //     behavior: SnackBarBehavior.floating,
+      //     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      //     duration: const Duration(seconds: 4),
+      //   ),
+      // );
     } catch (e) {
-      if (Navigator.canPop(context)) Navigator.pop(context);
+      if (!mounted) return;
+      Navigator.pop(context);
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('❌ Eroare la generarea registrului: $e'),
+          content: Row(
+            children: [
+              const Icon(Icons.error, color: Colors.white),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text('Eroare la generarea raportului: $e'),
+              ),
+            ],
+          ),
           backgroundColor: Colors.red,
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         ),
       );
     }
-  }
-}
-
-class ClientListTile extends StatelessWidget {
-  final Client client;
-
-  const ClientListTile({super.key, required this.client});
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      child: ListTile(
-        leading: CircleAvatar(
-          backgroundColor: Theme.of(context).colorScheme.primary,
-          child: Text(
-            client.name.isNotEmpty ? client.name[0].toUpperCase() : '?',
-            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-          ),
-        ),
-        title: Text(
-          client.name,
-          style: const TextStyle(fontWeight: FontWeight.bold),
-        ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('📍 ${client.address}'),
-            if (client.phone.isNotEmpty) Text('📞 ${client.phone}'),
-          ],
-        ),
-        trailing: const Icon(Icons.arrow_forward_ios),
-        onTap: () {
-          // Navigate to client detail screen
-          context.push('/client/${client.id}');
-        },
-        onLongPress: () {
-          _showClientOptions(context, client);
-        },
-      ),
-    );
-  }
-
-  void _showClientOptions(BuildContext context, Client client) {
-    showModalBottomSheet(
-      context: context,
-      builder: (context) => Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          ListTile(
-            leading: const Icon(Icons.edit),
-            title: const Text('Editează Client'),
-            onTap: () async {
-              Navigator.pop(context);
-              final result = await Navigator.of(context).push<bool>(
-                MaterialPageRoute(
-                  builder: (context) => AddEditClientScreen(client: client),
-                ),
-              );
-              if (result == true && context.mounted) {
-                context.read<ClientProvider>().loadClients();
-              }
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.delete, color: Colors.red),
-            title: const Text('Șterge Client', style: TextStyle(color: Colors.red)),
-            onTap: () {
-              Navigator.pop(context);
-              _confirmDelete(context, client);
-            },
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _confirmDelete(BuildContext context, Client client) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Șterge Client'),
-        content: Text('Ești sigur că vrei să ștergi "${client.name}"?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Renunță'),
-          ),
-          TextButton(
-            onPressed: () async {
-              Navigator.pop(context);
-              final success = await context.read<ClientProvider>().deleteClient(client.id!);
-              if (context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text(success
-                      ? 'Client șters cu succes'
-                      : 'Ștergerea clientului a eșuat')),
-                );
-              }
-            },
-            child: const Text('Șterge', style: TextStyle(color: Colors.red)),
-          ),
-        ],
-      ),
-    );
   }
 }
