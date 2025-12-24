@@ -216,34 +216,67 @@ class _TrimesterSelectionDialogState extends State<TrimesterSelectionDialog> {
                 TextButton(
                   onPressed: () => Navigator.pop(context),
                   child: const Text(
-                    'Anulează',
+                    'Anuleaza',
                     style: TextStyle(fontSize: 16),
                   ),
                 ),
-                const SizedBox(width: 12),
-                ElevatedButton(
-                  onPressed: () {
-                    Navigator.pop(context, {
-                      'year': _selectedYear,
-                      'trimester': _selectedTrimester,
-                    });
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.green,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 24,
-                      vertical: 12,
-                    ),
-                    shape: RoundedRectangleBorder(
+                const Spacer(),
+                // Share button (icon only)
+                Tooltip(
+                  message: 'Partajeaza',
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.blue,
                       borderRadius: BorderRadius.circular(12),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.blue.withOpacity(0.3),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: IconButton(
+                      onPressed: () {
+                        Navigator.pop(context, {
+                          'year': _selectedYear,
+                          'trimester': _selectedTrimester,
+                          'action': 'share',
+                        });
+                      },
+                      icon: const Icon(Icons.share, color: Colors.white),
+                      iconSize: 24,
+                      padding: const EdgeInsets.all(12),
                     ),
                   ),
-                  child: const Text(
-                    'Generează',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
+                ),
+                const SizedBox(width: 12),
+                // Download button (icon only)
+                Tooltip(
+                  message: 'Descarca',
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.green,
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.green.withOpacity(0.3),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: IconButton(
+                      onPressed: () {
+                        Navigator.pop(context, {
+                          'year': _selectedYear,
+                          'trimester': _selectedTrimester,
+                          'action': 'download',
+                        });
+                      },
+                      icon: const Icon(Icons.download, color: Colors.white),
+                      iconSize: 24,
+                      padding: const EdgeInsets.all(12),
                     ),
                   ),
                 ),

@@ -694,7 +694,7 @@ class _RaportIscirFormScreenState extends State<RaportIscirFormScreen> with Tick
           signaturesBase64[key] = base64Encode(value);
         }
       });
-      completeData['page5_signatures'] = signaturesBase64;
+      completeData['page5_signatures'] = json.encode(signaturesBase64);
     }
 
     // === CLIENT DATA (for PDF mapping) ===
@@ -714,13 +714,6 @@ class _RaportIscirFormScreenState extends State<RaportIscirFormScreen> with Tick
     completeData['email_client'] = widget.client.email;
     completeData['loc_aparat_client'] = widget.client.installationLocation;
     completeData['detinator_client'] = widget.client.holder;
-
-    print('=== COMPLETE FORM DATA FOR PDF ===');
-    print('Total fields: ${completeData.keys.length}');
-    print('Client fields: ${completeData.keys.where((k) => k.startsWith('client_') || k.startsWith('nume_')).toList()}');
-    print('Equipment fields: ${completeData.keys.where((k) => ['producator', 'tip', 'model', 'serie_an_fabricatie'].contains(k)).toList()}');
-    print('Page 5 signatures: ${completeData.containsKey('page5_signatures') ? (completeData['page5_signatures'] as Map).keys.toList() : 'None'}');
-    print('Auto fields: report_no=${completeData['report_no']}, today_date=${completeData['today_date']}');
 
     return completeData;
   }
@@ -975,7 +968,7 @@ class _RaportIscirFormScreenState extends State<RaportIscirFormScreen> with Tick
             signaturesBase64[key] = base64Encode(value);
           }
         });
-        pageData['page5_signatures'] = signaturesBase64;
+        pageData['page5_signatures'] = json.encode(signaturesBase64);
         print('Saving Page 5 signatures: ${signaturesBase64.keys.toList()}');
       }
 

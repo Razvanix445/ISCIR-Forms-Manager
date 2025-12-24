@@ -920,7 +920,7 @@ class ModernFormListTile extends StatelessWidget {
   }
 
   void _onFormTap(BuildContext context) {
-    context.push('/form/${form.id}/edit').then((result) {
+    context.push('/clients/${form.clientId}/forms/${form.id}/edit').then((result) {
       if (result == true) {
         context.read<FormProvider>().loadFormsByClient(form.clientId);
       }
@@ -1011,7 +1011,7 @@ class ModernFormListTile extends StatelessWidget {
   }
 
   void _editForm(BuildContext context) {
-    context.push('/form/${form.id}/edit').then((result) {
+    context.push('/clients/${form.clientId}/forms/${form.id}/edit').then((result) {
       if (result == true) {
         context.read<FormProvider>().loadFormsByClient(form.clientId);
       }

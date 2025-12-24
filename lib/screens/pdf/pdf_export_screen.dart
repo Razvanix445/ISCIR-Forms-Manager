@@ -287,6 +287,14 @@ class _PdfExportScreenState extends State<PdfExportScreen> with TickerProviderSt
       mainAxisSize: MainAxisSize.min,
       children: [
         _buildFAB(
+          icon: Icons.download,
+          color: Colors.blue,
+          onPressed: _downloadPdf,
+          tooltip: 'Descarcă',
+          delay: 0,
+        ),
+        const SizedBox(height: 12),
+        _buildFAB(
           icon: Icons.share,
           color: Colors.green,
           onPressed: _sharePdf,
@@ -396,6 +404,70 @@ class _PdfExportScreenState extends State<PdfExportScreen> with TickerProviderSt
       await pdfService.printPdf(_currentPdfBytes!, _currentFileName);
     } catch (e) {
       _showErrorSnackBar('Eroare la imprimare: $e');
+    }
+  }
+
+  Future<void> _downloadPdf() async {
+    if (_currentPdfBytes == null) return;
+
+    // Show loading indicator
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => Center(
+        child: Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: const [
+              CircularProgressIndicator(),
+              SizedBox(height: 16),
+              Text('Se salveaza PDF...'),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    try {
+      final pdfService = SimplePdfGenerationService.instance;
+      await pdfService.savePdfToDevice(_currentPdfBytes!, _currentFileName);
+
+      if (!mounted) return;
+      Navigator.pop(context); // Close loading dialog
+
+      // Show success message with file location
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: const [
+              Icon(Icons.check_circle, color: Colors.white),
+              SizedBox(width: 12),
+              Expanded(
+                child: Text('PDF salvat in folderul Download!'),
+              ),
+            ],
+          ),
+          backgroundColor: Colors.green,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          duration: const Duration(seconds: 4),
+          action: SnackBarAction(
+            label: 'OK',
+            textColor: Colors.white,
+            onPressed: () {},
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      Navigator.pop(context); // Close loading dialog
+
+      _showErrorSnackBar('Eroare la salvarea PDF: $e');
     }
   }
 
